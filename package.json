@@ -5,13 +5,13 @@
   "type": "module",
   "private": true,
   "license": "MIT",
-  "homepage": "https://github.com/sahaj-snapdevio/Kanbanica#readme",
+  "homepage": "https://github.com/stack256org/kanbanica#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sahaj-snapdevio/Kanbanica.git"
+    "url": "git+https://github.com/stack256org/kanbanica.git"
   },
   "bugs": {
-    "url": "https://github.com/sahaj-snapdevio/Kanbanica/issues"
+    "url": "https://github.com/stack256org/kanbanica/issues"
   },
   "keywords": [
     "project-management",
@@ -37,6 +37,8 @@
     "lint:fix": "biome check --write",
     "lint:tokens": "./scripts/lint-tokens.sh",
     "format": "biome format --write",
+    "docs:sync": "node scripts/sync-readme.mjs",
+    "docs:check": "node scripts/sync-readme.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

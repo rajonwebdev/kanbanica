@@ -105,8 +105,8 @@ CMD ["node", "server.js"]
 # links the package back to this repository.
 LABEL org.opencontainers.image.title="Kanbanica" \
       org.opencontainers.image.description="Open-source, self-hosted project-management app (Workspaces → Projects/Spaces → Lists/Sprints → Tasks)." \
-      org.opencontainers.image.url="https://github.com/stack256org/kanbanika" \
-      org.opencontainers.image.source="https://github.com/stack256org/kanbanika" \
-      org.opencontainers.image.documentation="https://github.com/stack256org/kanbanika#readme" \
+      org.opencontainers.image.url="https://github.com/stack256org/kanbanica" \
+      org.opencontainers.image.source="https://github.com/stack256org/kanbanica" \
+      org.opencontainers.image.documentation="https://github.com/stack256org/kanbanica#readme" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.vendor="Stack256"

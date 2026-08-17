@@ -78,7 +78,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: kanbanika_ci
+          POSTGRES_DB: kanbanica_ci
         ports:
           - 5432:5432
         options: >-
@@ -103,7 +103,7 @@ jobs:
       - name: Run migrations against a fresh database
         run: pnpm db:migrate
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kanbanika_ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kanbanica_ci
 
       - name: Fail if the schema has uncommitted migrations
         run: |
@@ -115,4 +115,4 @@ jobs:
             exit 1
           fi
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kanbanika_ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kanbanica_ci
