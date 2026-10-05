@@ -30,6 +30,27 @@ dated section, e.g.:
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
+### Added
+- **Workspace timezone.** Each workspace has a timezone (defaults to `UTC`),
+  used to decide what "today", "overdue" and week boundaries mean for everyone
+  in it.
+- `pnpm tz:dry-run` previews how existing dates will be converted and flags rows
+  that need review before you migrate.
+
+### Changed
+- Task due dates, sprint start/end dates and custom DATE field values are now
+  plain calendar days (`YYYY-MM-DD`) instead of instants, so a date no longer
+  shifts when viewed from another timezone. CSV import/export uses the same
+  day format.
+
+### Upgrade notes
+- Migration `0029_calendar_day_dates` converts existing dates in place. **Before
+  upgrading**, set each workspace's timezone (especially ones with sprints
+  started via "Start sprint") and run `pnpm tz:dry-run`, then review flagged
+  rows.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added
