@@ -47,6 +47,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:migrate:prod": "tsx scripts/migrate.ts",
+    "tz:dry-run": "tsx scripts/timezone-dry-run.ts",
     "db:reset": "tsx db/reset.ts && pnpm db:migrate",
     "make:admin": "tsx scripts/make-admin.ts",
     "create:admin": "tsx scripts/create-admin.ts"

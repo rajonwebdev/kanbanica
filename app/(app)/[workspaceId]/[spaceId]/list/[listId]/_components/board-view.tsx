@@ -112,6 +112,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { useCreateTaskShortcut } from "@/hooks/use-create-task-shortcut";
 import { useListColumnPreferences } from "@/hooks/use-list-column-preferences";
 import { taskUrl } from "@/lib/app-url";
@@ -133,6 +134,10 @@ import { filterTasks } from "@/lib/filters/task-filter";
 import { formatDueDate } from "@/lib/priority-config";
 import { STATUS_PRESET_COLORS } from "@/lib/status-colors";
 import { setTaskNavContext } from "@/lib/task-nav-context";
+import {
+  calendarDayFromLocalDate,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 import { QuickCreateTask } from "./quick-create-task";
@@ -176,8 +181,8 @@ interface Task {
   assignees: { userId: string; name: string; image: string | null }[];
   customFieldValues?: Record<string, unknown>;
   dependencyInfo?: TaskDependencyIndicator;
-  dueDateEnd: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd: string | null;
+  dueDateStart: string | null;
   id: string;
   orderIndex: number;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -489,7 +494,8 @@ function CardContent({
   // it on click. Left uncontrolled, the menu stayed open over the card and the
   // result only became visible once the user clicked outside.
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const dueDate = formatDueDate(task.dueDateEnd);
+  const today = useWorkspaceToday();
+  const dueDate = formatDueDate(task.dueDateEnd, today);
   const filteredMembers = members.filter((m) => {
     const q = memberSearch.trim().toLowerCase();
     if (!q) {
@@ -547,7 +553,7 @@ function CardContent({
     onRefresh?.();
   }
 
-  async function handleSetDueDate(date: Date | null) {
+  async function handleSetDueDate(date: string | null) {
     setDateOpen(false);
     // "Due Date" is the deadline (end date). Preserve an existing start date;
     // for tasks with no start, set both so single-date tasks stay consistent.
@@ -993,8 +999,16 @@ function CardContent({
                 >
                   <Calendar
                     mode="single"
-                    onSelect={(date) => void handleSetDueDate(date ?? null)}
-                    selected={task.dueDateEnd ?? undefined}
+                    onSelect={(date) =>
+                      void handleSetDueDate(
+                        date ? calendarDayFromLocalDate(date) : null
+                      )
+                    }
+                    selected={
+                      task.dueDateEnd
+                        ? localDateFromCalendarDay(task.dueDateEnd)
+                        : undefined
+                    }
                   />
                   {task.dueDateEnd && (
                     <div className="border-t border-base-300 p-1">
@@ -1926,6 +1940,7 @@ export function BoardView({
   }
 
   // ── Filtered + sorted tasks (for display) ────────────────────────────────
+  const workspaceToday = useWorkspaceToday();
   const processedTasks = React.useMemo(() => {
     let result = filterTasks(
       localTasks,
@@ -1935,6 +1950,7 @@ export function BoardView({
         priorityFilter,
         assigneeFilter,
         customFieldFilters,
+        today: workspaceToday,
       },
       customFields,
       members
@@ -1965,6 +1981,7 @@ export function BoardView({
     members,
     sortBy,
     sortOrder,
+    workspaceToday,
   ]);
 
   // tasksByStatus uses processed tasks for display; DnD handlers still use localTasks

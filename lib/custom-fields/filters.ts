@@ -7,13 +7,12 @@
 // supplies the per-field-type predicate, it isn't a second filtering system.
 
 import {
-  addDays,
-  endOfMonth,
-  endOfWeek,
-  isSameDay,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+  addCalendarDays,
+  type CalendarDay,
+  coerceCalendarDay,
+  endOfWeekDay,
+  startOfWeekDay,
+} from "@/lib/timezone";
 
 export type TextFilterOperator =
   | "contains"
@@ -100,9 +99,14 @@ function isBlank(value: unknown): boolean {
   return value === null || value === undefined || value === "";
 }
 
+/**
+ * `today` is today's calendar day in the WORKSPACE timezone — it anchors the
+ * relative DATE operators (today / tomorrow / this week / this month).
+ */
 export function matchesCustomFieldFilter(
   value: unknown,
-  filter: CustomFieldFilterValue
+  filter: CustomFieldFilterValue,
+  today: CalendarDay
 ): boolean {
   switch (filter.type) {
     case "TEXT": {
@@ -179,37 +183,30 @@ export function matchesCustomFieldFilter(
       if (empty) {
         return false;
       }
-      const date = new Date(value as string);
-      if (Number.isNaN(date.getTime())) {
+      // DATE values are calendar days; compare days, never instants.
+      const day = coerceCalendarDay(value);
+      if (!day) {
         return false;
       }
-      const now = new Date();
+      const target = coerceCalendarDay(filter.value);
+      const targetMax = coerceCalendarDay(filter.valueMax);
       switch (filter.operator) {
         case "today":
-          return isSameDay(date, now);
+          return day === today;
         case "tomorrow":
-          return isSameDay(date, addDays(now, 1));
+          return day === addCalendarDays(today, 1);
         case "this_week":
-          return date >= startOfWeek(now) && date <= endOfWeek(now);
+          return day >= startOfWeekDay(today) && day <= endOfWeekDay(today);
         case "this_month":
-          return date >= startOfMonth(now) && date <= endOfMonth(now);
+          return day.slice(0, 7) === today.slice(0, 7);
         case "on":
-          return !!filter.value && isSameDay(date, new Date(filter.value));
+          return !!target && day === target;
         case "before":
-          return (
-            !!filter.value && date.getTime() < new Date(filter.value).getTime()
-          );
+          return !!target && day < target;
         case "after":
-          return (
-            !!filter.value && date.getTime() > new Date(filter.value).getTime()
-          );
+          return !!target && day > target;
         case "between":
-          return (
-            !!filter.value &&
-            !!filter.valueMax &&
-            date.getTime() >= new Date(filter.value).getTime() &&
-            date.getTime() <= new Date(filter.valueMax).getTime()
-          );
+          return !!target && !!targetMax && day >= target && day <= targetMax;
         default:
           return true;
       }
@@ -277,13 +274,14 @@ export function matchesCustomFieldFilter(
 // A task must satisfy every active per-field filter (AND across fields).
 export function matchesCustomFieldFilters(
   values: Record<string, unknown> | undefined,
-  filters: CustomFieldFilters | undefined
+  filters: CustomFieldFilters | undefined,
+  today: CalendarDay
 ): boolean {
   if (!filters) {
     return true;
   }
   for (const fieldId of Object.keys(filters)) {
-    if (!matchesCustomFieldFilter(values?.[fieldId], filters[fieldId])) {
+    if (!matchesCustomFieldFilter(values?.[fieldId], filters[fieldId], today)) {
       return false;
     }
   }

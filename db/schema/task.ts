@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, text, timestamp, integer, boolean, json, index, unique } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, integer, boolean, json, index, unique, date } from "drizzle-orm/pg-core";
 import { workspace } from "./workspace";
 import { space } from "./space";
 import { list, listStatus } from "./list";
@@ -25,8 +25,11 @@ export const task = pgTable(
     description: json("description"),
     priority: priorityEnum("priority").notNull().default("NONE"),
     reporterId: text("reporter_id").notNull(),
-    dueDateStart: timestamp("due_date_start", { withTimezone: true }),
-    dueDateEnd: timestamp("due_date_end", { withTimezone: true }),
+    // Calendar days ("YYYY-MM-DD"), not instants — the same day for every
+    // viewer. "Today"/"overdue" are decided in the workspace timezone; see
+    // lib/timezone.ts.
+    dueDateStart: date("due_date_start", { mode: "string" }),
+    dueDateEnd: date("due_date_end", { mode: "string" }),
     timeEstimate: integer("time_estimate"),
     orderIndex: integer("order_index").notNull().default(0),
     isArchived: boolean("is_archived").notNull().default(false),

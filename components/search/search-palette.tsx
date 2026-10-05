@@ -40,6 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { useDebouncedSearch } from "@/hooks/use-debounced-search";
 import {
   DUE_OPTIONS,
@@ -120,6 +121,7 @@ export function SearchPalette({
   const [results, setResults] = React.useState<GlobalSearchResults | null>(
     null
   );
+  const workspaceToday = useWorkspaceToday();
   const [loading, setLoading] = React.useState(false);
   const [options, setOptions] = React.useState<SearchFilterOptions | null>(
     null
@@ -819,7 +821,7 @@ export function SearchPalette({
                     const isActive =
                       active?.kind === "task" && active.id === t.id;
                     const cfg = PRIORITY_CONFIG[t.priority as Priority];
-                    const due = formatDueDate(t.dueDateEnd);
+                    const due = formatDueDate(t.dueDateEnd, workspaceToday);
                     return (
                       <button
                         className={cn(

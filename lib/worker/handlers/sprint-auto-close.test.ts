@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleSprintAutoClose } from "@/lib/worker/handlers/sprint-auto-close";
 
 const { selectMock, closeSprintAndRolloverMock } = vi.hoisted(() => ({
@@ -37,7 +37,26 @@ beforeEach(() => {
   selectMock.mockReset();
   closeSprintAndRolloverMock.mockReset();
   closeSprintAndRolloverMock.mockResolvedValue({ nextSprintId: null });
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-05T12:00:00Z"));
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function activeSprint(id: string, endDate: string | null, timezone = "UTC") {
+  return {
+    id,
+    name: id,
+    spaceId: "sp1",
+    createdBy: "u1",
+    endDate,
+    timezone,
+    autoCreateNext: false,
+    moveIncomplete: false,
+  };
+}
 
 describe("handleSprintAutoClose", () => {
   it("does nothing when there are no eligible sprints", async () => {
@@ -55,6 +74,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u1",
         autoCreateNext: true,
         moveIncomplete: true,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
     ]);
     await handleSprintAutoClose([]);
@@ -76,6 +97,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u1",
         autoCreateNext: false,
         moveIncomplete: false,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
     ]);
     await handleSprintAutoClose([]);
@@ -93,6 +116,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u1",
         autoCreateNext: false,
         moveIncomplete: false,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
       {
         id: "s2",
@@ -101,6 +126,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u2",
         autoCreateNext: false,
         moveIncomplete: false,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
     ]);
     closeSprintAndRolloverMock
@@ -119,6 +146,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u1",
         autoCreateNext: true,
         moveIncomplete: true,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
       {
         id: "s2",
@@ -127,6 +156,8 @@ describe("handleSprintAutoClose", () => {
         createdBy: "u2",
         autoCreateNext: false,
         moveIncomplete: false,
+        endDate: "2026-10-01",
+        timezone: "UTC",
       },
     ]);
     await handleSprintAutoClose([]);
@@ -144,5 +175,31 @@ describe("handleSprintAutoClose", () => {
         incompleteStrategy: "move_to_backlog",
       })
     );
+  });
+
+  it("keeps a sprint open through its last day (end day is inclusive)", async () => {
+    queueEligibleSprints([activeSprint("ends-today", "2026-10-05")]);
+    await handleSprintAutoClose([]);
+    expect(closeSprintAndRolloverMock).not.toHaveBeenCalled();
+  });
+
+  it("closes once the day after the end day has begun in the WORKSPACE timezone", async () => {
+    // 18:30 UTC on Oct 5 = 00:00 Oct 6 in India, 14:30 Oct 5 in New York.
+    vi.setSystemTime(new Date("2026-10-05T18:30:00Z"));
+    queueEligibleSprints([
+      activeSprint("india", "2026-10-05", "Asia/Kolkata"),
+      activeSprint("newyork", "2026-10-05", "America/New_York"),
+    ]);
+    await handleSprintAutoClose([]);
+    expect(closeSprintAndRolloverMock).toHaveBeenCalledTimes(1);
+    expect(closeSprintAndRolloverMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sprintId: "india" })
+    );
+  });
+
+  it("ignores sprints without an end date", async () => {
+    queueEligibleSprints([activeSprint("no-end", null)]);
+    await handleSprintAutoClose([]);
+    expect(closeSprintAndRolloverMock).not.toHaveBeenCalled();
   });
 });

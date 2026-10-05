@@ -1,11 +1,11 @@
 "use client";
 
 import { GaugeIcon } from "@phosphor-icons/react";
-import { format } from "date-fns";
 import Link from "next/link";
 import type { WorkspaceOverviewData } from "@/app/actions/workspace-overview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { formatCalendarDay } from "@/lib/timezone";
 
 interface SprintOverviewProps {
   sprints: WorkspaceOverviewData["activeSprints"];
@@ -58,7 +58,7 @@ export function SprintOverview({ workspaceId, sprints }: SprintOverviewProps) {
                       : `${s.daysRemaining} day${s.daysRemaining === 1 ? "" : "s"} left`}
                 </span>
                 {s.endDate && (
-                  <span>Ends {format(new Date(s.endDate), "MMM d")}</span>
+                  <span>Ends {formatCalendarDay(s.endDate, "MMM d")}</span>
                 )}
               </div>
             </Link>

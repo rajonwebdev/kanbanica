@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { systemTimeZone } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 const LOGO_EMOJIS = ["🚀", "🏢", "⭐", "🎯", "💼", "🔥", "🛠️", "📈", "🎨", "🌱"];
@@ -84,6 +85,9 @@ export function OnboardingWizard({
       const result = await createOnboardingWorkspace({
         name: workspaceName,
         logoEmoji,
+        // New workspaces start in the creator's timezone (changeable later in
+        // Workspace Settings → General).
+        timezone: systemTimeZone(),
       });
       if ("error" in result) {
         toast.error(result.error);

@@ -12,6 +12,7 @@ import {
   type CustomFieldFilters,
   matchesCustomFieldFilters,
 } from "@/lib/custom-fields/filters";
+import { type CalendarDay, DEFAULT_TIMEZONE, todayIn } from "@/lib/timezone";
 
 export interface TaskFilterState {
   assigneeFilter: string[]; // user IDs, plus the literal "unassigned"
@@ -19,6 +20,11 @@ export interface TaskFilterState {
   priorityFilter: string[]; // "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   searchQuery: string;
   statusFilter: string[]; // status IDs
+  /**
+   * Today in the workspace timezone (`useWorkspaceToday()`) — anchors relative
+   * custom DATE filters. Required whenever `customFieldFilters` is set.
+   */
+  today?: CalendarDay;
 }
 
 // The minimal task shape the filters read.
@@ -74,7 +80,14 @@ export function matchesTaskFilters(
       return false;
     }
   }
-  if (!matchesCustomFieldFilters(t.customFieldValues, f.customFieldFilters)) {
+  if (
+    f.customFieldFilters &&
+    !matchesCustomFieldFilters(
+      t.customFieldValues,
+      f.customFieldFilters,
+      f.today ?? todayIn(DEFAULT_TIMEZONE)
+    )
+  ) {
     return false;
   }
   return true;

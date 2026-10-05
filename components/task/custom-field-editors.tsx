@@ -15,6 +15,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  calendarDayFromLocalDate,
+  coerceCalendarDay,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 export interface CustomFieldMember {
@@ -416,7 +421,10 @@ function DateEditor({
   value: string | null;
 }) {
   const [open, setOpen] = React.useState(false);
-  const date = value ? new Date(value) : null;
+  // DATE values are calendar days; the local-midnight Date of that day feeds
+  // the picker and format() (legacy ISO values are read leniently).
+  const day = coerceCalendarDay(value);
+  const date = day ? localDateFromCalendarDay(day) : null;
 
   if (disabled) {
     return date ? (
@@ -448,7 +456,7 @@ function DateEditor({
         <Calendar
           mode="single"
           onSelect={(d) => {
-            onChange(d ? d.toISOString() : null);
+            onChange(d ? calendarDayFromLocalDate(d) : null);
             setOpen(false);
           }}
           selected={date ?? undefined}

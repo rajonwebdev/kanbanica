@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateWorkspace } from "@/app/actions/workspace";
+import { TimezoneSelect } from "@/components/common/timezone-select";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { systemTimeZone } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 const LOGO_EMOJIS = ["🚀", "🏢", "⭐", "🎯", "💼", "🔥", "🛠️", "📈", "🎨", "🌱"];
@@ -25,6 +27,7 @@ interface GeneralSettingsFormProps {
     name: string;
     slug: string;
     logoEmoji: string | null;
+    timezone: string;
   };
 }
 
@@ -34,6 +37,10 @@ export function GeneralSettingsForm({ workspace }: GeneralSettingsFormProps) {
   const [name, setName] = useState(workspace.name);
   const [slug, setSlug] = useState(workspace.slug);
   const [logoEmoji, setLogoEmoji] = useState(workspace.logoEmoji);
+  const [timezone, setTimezone] = useState(workspace.timezone);
+  // Read after mount — the server render can't know the viewer's timezone.
+  const [browserTimeZone, setBrowserTimeZone] = useState<string | null>(null);
+  useEffect(() => setBrowserTimeZone(systemTimeZone()), []);
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +50,7 @@ export function GeneralSettingsForm({ workspace }: GeneralSettingsFormProps) {
         name: name.trim(),
         slug: slug.trim(),
         logoEmoji,
+        timezone,
       });
       if ("error" in result) {
         toast.error(result.error);
@@ -59,7 +67,9 @@ export function GeneralSettingsForm({ workspace }: GeneralSettingsFormProps) {
         <CardTitle className="normal-case tracking-normal text-base font-semibold">
           General
         </CardTitle>
-        <CardDescription>Workspace name, logo and URL slug.</CardDescription>
+        <CardDescription>
+          Workspace name, logo, URL slug and timezone.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-5 max-w-md" onSubmit={handleSave}>
@@ -111,6 +121,31 @@ export function GeneralSettingsForm({ workspace }: GeneralSettingsFormProps) {
             </div>
             <p className="text-xs text-base-content/60">
               Image upload arrives with the avatar system.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ws-timezone">Timezone</Label>
+            <TimezoneSelect
+              id="ws-timezone"
+              onChange={setTimezone}
+              value={timezone}
+            />
+            {browserTimeZone && timezone !== browserTimeZone && (
+              <button
+                className="text-xs text-primary hover:underline"
+                onClick={() => setTimezone(browserTimeZone)}
+                type="button"
+              >
+                Use my timezone ({browserTimeZone})
+              </button>
+            )}
+            <p className="text-xs text-base-content/60">
+              Decides when each day starts and ends for everyone in this
+              workspace due today, overdue, sprint start/end and reminders.
+              Existing due dates and sprint dates keep their calendar day. Times
+              like comments and activity still show in each person's own
+              timezone.
             </p>
           </div>
 

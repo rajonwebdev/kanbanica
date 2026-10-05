@@ -23,6 +23,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWorkspaceMembership } from "@/lib/permissions";
 import { parseThemeCookie, THEME_COOKIE } from "@/lib/theme";
+import { canonicalTimeZone, resolveTimeZone } from "@/lib/timezone";
 
 const DEFAULT_STATUSES = [
   {
@@ -111,11 +112,14 @@ export async function saveUserName(
 const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1, "Workspace name is required").max(100),
   logoEmoji: z.string().trim().max(8).optional().nullable(),
+  // The creator's browser timezone; anything unrecognised falls back to UTC.
+  timezone: z.string().trim().max(64).optional().nullable(),
 });
 
 export async function createOnboardingWorkspace(input: {
   name: string;
   logoEmoji?: string | null;
+  timezone?: string | null;
 }): Promise<{ workspaceId: string } | { error: string }> {
   const user = await getSessionUser();
 
@@ -124,6 +128,7 @@ export async function createOnboardingWorkspace(input: {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const { name, logoEmoji } = parsed.data;
+  const timezone = canonicalTimeZone(resolveTimeZone(parsed.data.timezone));
 
   // Check if user already owns a workspace with this name
   const existing = await db
@@ -158,6 +163,7 @@ export async function createOnboardingWorkspace(input: {
       logoEmoji: logoEmoji ?? null,
       createdBy: user.id,
       theme,
+      timezone,
     });
 
     await tx.insert(workspaceMember).values({

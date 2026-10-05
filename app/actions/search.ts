@@ -36,6 +36,7 @@ import {
 } from "@/lib/filters/options";
 import { buildTaskFilterConditions } from "@/lib/filters/task-conditions";
 import { canAccessSpace, getAccessibleSpaceIds } from "@/lib/permissions";
+import { getWorkspaceToday } from "@/lib/workspace-timezone";
 
 // ─── Global Search ──────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ export type SearchTaskResult = {
   listName: string | null;
   spaceId: string;
   spaceName: string;
-  dueDateEnd: Date | null;
+  dueDateEnd: string | null;
   isArchived: boolean;
   assignees: { userId: string; name: string | null; email: string | null }[];
 };
@@ -175,7 +176,12 @@ export async function globalSearch(
       conditions.push(inArray(space.id, filters.space));
     }
     // status(type)/priority/due/assignee/tags/sprint via the shared builder.
-    conditions.push(...buildTaskFilterConditions(filters ?? {}));
+    conditions.push(
+      ...buildTaskFilterConditions(
+        filters ?? {},
+        await getWorkspaceToday(workspaceId)
+      )
+    );
 
     const taskRows = await db
       .select({
@@ -561,7 +567,7 @@ export async function getFilteredTasks(
       seqNumber: number;
       priority: string;
       statusId: string | null;
-      dueDateEnd: Date | null;
+      dueDateEnd: string | null;
       orderIndex: number;
       tags: { id: string; name: string; color: string }[];
       assignees: {
@@ -592,7 +598,7 @@ export async function getFilteredTasks(
     eq(task.listId, listId),
     eq(task.isArchived, false),
     isNull(task.parentTaskId),
-    ...buildTaskFilterConditions(filters),
+    ...buildTaskFilterConditions(filters, await getWorkspaceToday(workspaceId)),
   ];
 
   const taskRows = await db

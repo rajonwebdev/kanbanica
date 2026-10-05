@@ -35,7 +35,6 @@ import {
   TrayIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -101,6 +100,7 @@ import {
 } from "@/lib/priority-config";
 import { STATUS_PRESET_COLORS } from "@/lib/status-colors";
 import { setTaskNavContext } from "@/lib/task-nav-context";
+import { formatCalendarDay } from "@/lib/timezone";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 
@@ -116,8 +116,8 @@ interface Status {
 
 interface SprintTask {
   assignees: { userId: string; name: string; image: string | null }[];
-  dueDateEnd: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd: string | null;
+  dueDateStart: string | null;
   id: string;
   listId: string | null;
   orderIndex: number;
@@ -132,11 +132,11 @@ interface SprintTask {
 }
 
 interface SprintInfo {
-  endDate: Date | null;
+  endDate: string | null;
   goal: string | null;
   id: string;
   name: string;
-  startDate: Date | null;
+  startDate: string | null;
   status: "PLANNED" | "ACTIVE" | "CLOSED";
 }
 
@@ -165,8 +165,8 @@ type ListSpaceOption = {
   lists: { id: string; name: string; color: string | null }[];
 };
 
-function formatDateRange(start: Date | null, end: Date | null): string {
-  const fmt = (d: Date | null) => (d ? format(new Date(d), "M/d") : "—");
+function formatDateRange(start: string | null, end: string | null): string {
+  const fmt = (d: string | null) => (d ? formatCalendarDay(d, "M/d") : "—");
   return `${fmt(start)} - ${fmt(end)}`;
 }
 

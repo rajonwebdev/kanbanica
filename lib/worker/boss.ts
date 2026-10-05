@@ -99,7 +99,8 @@ export async function startWorker() {
   await boss.schedule(JOB_NAMES.EMAIL_OUTBOX_REAP, "*/15 * * * *", {});
   await boss.schedule(JOB_NAMES.EMAIL_EVENTS_PRUNE, "17 3 * * *", {});
   await boss.schedule(JOB_NAMES.SCAFFOLD_HEALTHCHECK, "*/10 * * * *", {});
-  await boss.schedule(JOB_NAMES.SPRINT_AUTO_CLOSE, "0 0 * * *", {});
+  // Hourly so each workspace's sprints close shortly after ITS local midnight.
+  await boss.schedule(JOB_NAMES.SPRINT_AUTO_CLOSE, "5 * * * *", {});
   await boss.schedule(JOB_NAMES.NOTIFICATION_CLEANUP, "0 1 * * *", {});
   await boss.schedule(JOB_NAMES.DUE_DATE_REMINDER, "0 * * * *", {});
   await boss.schedule(JOB_NAMES.NOTIFICATION_DIGEST_SCAN, "*/30 * * * *", {});

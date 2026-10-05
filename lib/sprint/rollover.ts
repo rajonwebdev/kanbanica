@@ -1,7 +1,16 @@
 import { createId } from "@paralleldrive/cuid2";
 import { and, eq, inArray } from "drizzle-orm";
-import { listStatus, sprint, task, taskSprint } from "@/db/schema";
+import {
+  listStatus,
+  space,
+  sprint,
+  task,
+  taskSprint,
+  workspace,
+} from "@/db/schema";
 import { db } from "@/lib/db";
+import { sprintEndDay } from "@/lib/sprint/dates";
+import { addCalendarDays, todayIn } from "@/lib/timezone";
 
 // Shared sprint close + rollover logic, driven by space-level settings.
 //
@@ -15,11 +24,7 @@ export type IncompleteStrategy =
   | "move_to_next_sprint"
   | "leave_as_is";
 
-export function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
+export { sprintEndDay } from "@/lib/sprint/dates";
 
 // "Sprint 3" → "Sprint 4", "Sprint 10" → "Sprint 11"; falls back to "<name> 2".
 export function incrementSprintName(name: string): string {
@@ -67,8 +72,11 @@ export async function closeSprintAndRollover(params: {
       name: sprint.name,
       endDate: sprint.endDate,
       durationWeeks: sprint.durationWeeks,
+      timezone: workspace.timezone,
     })
     .from(sprint)
+    .innerJoin(space, eq(sprint.spaceId, space.id))
+    .innerJoin(workspace, eq(space.workspaceId, workspace.id))
     .where(and(eq(sprint.id, sprintId), eq(sprint.spaceId, spaceId)))
     .limit(1);
 
@@ -116,8 +124,12 @@ export async function closeSprintAndRollover(params: {
     if (existingPlanned) {
       nextSprintId = existingPlanned.id;
     } else {
-      const newStartDate = current.endDate ? addDays(current.endDate, 1) : now;
-      const newEndDate = addDays(newStartDate, current.durationWeeks * 7);
+      // The day after the closed sprint's last day; "today" in the workspace
+      // timezone if it never had an end date.
+      const newStartDate = current.endDate
+        ? addCalendarDays(current.endDate, 1)
+        : todayIn(current.timezone, now);
+      const newEndDate = sprintEndDay(newStartDate, current.durationWeeks);
       const newId = createId();
 
       await db.insert(sprint).values({

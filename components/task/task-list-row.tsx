@@ -70,6 +70,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { InviteMemberModal } from "@/components/workspace/invite-member-modal";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { taskUrl } from "@/lib/app-url";
 import {
   CUSTOM_FIELD_COLUMN_WIDTH_CLASS,
@@ -85,6 +86,10 @@ import {
   PRIORITY_CONFIG,
   userInitials,
 } from "@/lib/priority-config";
+import {
+  calendarDayFromLocalDate,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +99,8 @@ export interface TaskListRowData {
   assignees: { userId: string; name: string; image: string | null }[];
   customFieldValues?: Record<string, unknown>;
   dependencyInfo?: TaskDependencyIndicator;
-  dueDateEnd?: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd?: string | null;
+  dueDateStart: string | null;
   id: string;
   isPinnedToList?: boolean;
   listId?: string | null;
@@ -205,7 +210,8 @@ export function TaskListRow({
   // editor writes. It used to fall back to `dueDateStart` when the end was
   // empty, which made clearing a due date look like a no-op on any task that
   // also had a start date (the start would immediately take its place).
-  const [localDueDate, setLocalDueDate] = React.useState<Date | null>(
+  // Calendar day ("YYYY-MM-DD").
+  const [localDueDate, setLocalDueDate] = React.useState<string | null>(
     task.dueDateEnd ?? null
   );
   const [localPersonalPin, setLocalPersonalPin] = React.useState(
@@ -338,7 +344,8 @@ export function TaskListRow({
   const priority =
     PRIORITY_CONFIG[localPriority as keyof typeof PRIORITY_CONFIG] ??
     PRIORITY_CONFIG.NONE;
-  const dueDate = formatDueDate(localDueDate);
+  const workspaceToday = useWorkspaceToday();
+  const dueDate = formatDueDate(localDueDate, workspaceToday);
 
   // ── Popover open state ────────────────────────────────────────────────────
   const [assigneeOpen, setAssigneeOpen] = React.useState(false);
@@ -434,7 +441,7 @@ export function TaskListRow({
     onRefresh();
   }
 
-  async function handleSetDueDate(date: Date | null) {
+  async function handleSetDueDate(date: string | null) {
     const prev = localDueDate;
     setLocalDueDate(date);
     setDateOpen(false);
@@ -812,15 +819,21 @@ export function TaskListRow({
             <Calendar
               disabled={
                 task.dueDateStart
-                  ? { before: new Date(task.dueDateStart) }
+                  ? { before: localDateFromCalendarDay(task.dueDateStart) }
                   : undefined
               }
               mode="single"
               onSelect={(date) => {
-                void handleSetDueDate(date ?? null);
+                void handleSetDueDate(
+                  date ? calendarDayFromLocalDate(date) : null
+                );
                 setDateOpen(false);
               }}
-              selected={localDueDate ?? undefined}
+              selected={
+                localDueDate
+                  ? localDateFromCalendarDay(localDueDate)
+                  : undefined
+              }
             />
             {localDueDate && (
               <div className="border-t p-2">
@@ -1728,12 +1741,20 @@ export function TaskListRow({
                 <Calendar
                   disabled={
                     task.dueDateStart
-                      ? { before: new Date(task.dueDateStart) }
+                      ? { before: localDateFromCalendarDay(task.dueDateStart) }
                       : undefined
                   }
                   mode="single"
-                  onSelect={(date) => void handleSetDueDate(date ?? null)}
-                  selected={localDueDate ?? undefined}
+                  onSelect={(date) =>
+                    void handleSetDueDate(
+                      date ? calendarDayFromLocalDate(date) : null
+                    )
+                  }
+                  selected={
+                    localDueDate
+                      ? localDateFromCalendarDay(localDueDate)
+                      : undefined
+                  }
                 />
                 {localDueDate && (
                   <div className="border-t p-2">

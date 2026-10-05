@@ -30,6 +30,11 @@ import type {
   SingleSelectFilterOperator,
   TextFilterOperator,
 } from "@/lib/custom-fields/filters";
+import {
+  calendarDayFromLocalDate,
+  coerceCalendarDay,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 
 export interface CustomFieldFilterMember {
   email: string | null;
@@ -370,8 +375,15 @@ function DateFieldFilter({
   const needsDate =
     operator === "on" || operator === "before" || operator === "after";
   const needsRange = operator === "between";
-  const selectedDate = value?.value ? new Date(value.value) : undefined;
-  const selectedMax = value?.valueMax ? new Date(value.valueMax) : undefined;
+  // Filter bounds are calendar days ("YYYY-MM-DD").
+  const toPickerDate = (v: string | undefined) => {
+    const day = coerceCalendarDay(v);
+    return day ? localDateFromCalendarDay(day) : undefined;
+  };
+  const toDay = (d: Date | undefined) =>
+    d ? calendarDayFromLocalDate(d) : undefined;
+  const selectedDate = toPickerDate(value?.value);
+  const selectedMax = toPickerDate(value?.valueMax);
 
   return (
     <div className="space-y-1.5">
@@ -401,7 +413,7 @@ function DateFieldFilter({
         <DatePickerButton
           date={selectedDate}
           onSelect={(d) =>
-            onChange({ type: "DATE", operator, value: d?.toISOString() })
+            onChange({ type: "DATE", operator, value: toDay(d) })
           }
         />
       )}
@@ -413,7 +425,7 @@ function DateFieldFilter({
               onChange({
                 type: "DATE",
                 operator,
-                value: d?.toISOString(),
+                value: toDay(d),
                 valueMax: value?.valueMax,
               })
             }
@@ -426,7 +438,7 @@ function DateFieldFilter({
                 type: "DATE",
                 operator,
                 value: value?.value,
-                valueMax: d?.toISOString(),
+                valueMax: toDay(d),
               })
             }
             placeholder="To"

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { WorkspaceShell } from "@/components/workspace/workspace-shell";
+import { WorkspaceTimeZoneProvider } from "@/components/workspace/workspace-timezone-provider";
 import { ADMIN_ROLE } from "@/config/platform";
 import {
   channel,
@@ -22,6 +23,7 @@ import {
   getAccessibleSpaceIds,
   getWorkspaceMembership,
 } from "@/lib/permissions";
+import { resolveTimeZone } from "@/lib/timezone";
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode;
@@ -59,6 +61,7 @@ export default async function WorkspaceLayout({
         name: workspace.name,
         logoEmoji: workspace.logoEmoji,
         theme: workspace.theme,
+        timezone: workspace.timezone,
       })
       .from(workspace)
       .where(and(eq(workspace.id, workspaceId), eq(workspace.status, "ACTIVE")))
@@ -294,8 +297,8 @@ export default async function WorkspaceLayout({
       id: string;
       name: string;
       status: "PLANNED" | "ACTIVE" | "CLOSED";
-      startDate: Date | null;
-      endDate: Date | null;
+      startDate: string | null;
+      endDate: string | null;
     }[]
   > = {};
   if (spaces.length > 0) {
@@ -340,39 +343,41 @@ export default async function WorkspaceLayout({
       workspaceId={workspaceId}
     >
       <RealtimeProvider workspaceId={workspaceId}>
-        <WorkspaceShell
-          archivedSpaces={archivedSpaces.map((s) => ({
-            ...s,
-            lists: [],
-            archivedLists: [],
-            sprints: [],
-            canManageList: isAdminOrOwner,
-            sprintDateFormat: s.sprintDateFormat ?? "MM/DD",
-          }))}
-          channels={channels}
-          isPlatformAdmin={session.user.role === ADMIN_ROLE}
-          role={membership.role}
-          spaces={spaces.map((s) => ({
-            ...s,
-            lists: spaceListMap[s.id] ?? [],
-            archivedLists: archivedListsBySpace[s.id] ?? [],
-            canManageList: spaceCanManageMap[s.id] ?? isAdminOrOwner,
-            sprints: sprintsBySpace[s.id] ?? [],
-          }))}
-          user={{
-            name: session.user.name ?? null,
-            email: session.user.email,
-            image: session.user.image ?? null,
-          }}
-          workspace={ws}
-          workspaces={allMemberships.map((m) => ({
-            id: m.workspaceId,
-            name: m.name,
-            logoEmoji: m.logoEmoji,
-          }))}
-        >
-          {children}
-        </WorkspaceShell>
+        <WorkspaceTimeZoneProvider timeZone={resolveTimeZone(ws.timezone)}>
+          <WorkspaceShell
+            archivedSpaces={archivedSpaces.map((s) => ({
+              ...s,
+              lists: [],
+              archivedLists: [],
+              sprints: [],
+              canManageList: isAdminOrOwner,
+              sprintDateFormat: s.sprintDateFormat ?? "MM/DD",
+            }))}
+            channels={channels}
+            isPlatformAdmin={session.user.role === ADMIN_ROLE}
+            role={membership.role}
+            spaces={spaces.map((s) => ({
+              ...s,
+              lists: spaceListMap[s.id] ?? [],
+              archivedLists: archivedListsBySpace[s.id] ?? [],
+              canManageList: spaceCanManageMap[s.id] ?? isAdminOrOwner,
+              sprints: sprintsBySpace[s.id] ?? [],
+            }))}
+            user={{
+              name: session.user.name ?? null,
+              email: session.user.email,
+              image: session.user.image ?? null,
+            }}
+            workspace={ws}
+            workspaces={allMemberships.map((m) => ({
+              id: m.workspaceId,
+              name: m.name,
+              logoEmoji: m.logoEmoji,
+            }))}
+          >
+            {children}
+          </WorkspaceShell>
+        </WorkspaceTimeZoneProvider>
       </RealtimeProvider>
     </ThemeProvider>
   );

@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import * as React from "react";
 import useSWR from "swr";
+import { TimezoneSelect } from "@/components/common/timezone-select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,6 +15,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
+import {
+  DEFAULT_TIMEZONE,
+  resolveTimeZone,
+  systemTimeZone,
+} from "@/lib/timezone";
 import { useSetTopbar } from "@/lib/topbar-context";
 
 // Half-hour slots for the daily-digest send time. A Select rather than
@@ -112,6 +118,12 @@ export default function NotificationSettingsPage() {
   const [prefs, setPrefs] = React.useState<NotifPref[]>([]);
   const [deliveryMode, setDeliveryMode] = React.useState<string>("instant");
   const [digestTime, setDigestTime] = React.useState<string>("08:00");
+  // Emails can't read the browser's timezone, so the digest send time and the
+  // timestamps inside emails use this stored one.
+  const [timeZone, setTimeZone] = React.useState<string>(DEFAULT_TIMEZONE);
+  const [browserTimeZone, setBrowserTimeZone] = React.useState<string | null>(
+    null
+  );
   const [soundEnabled, setSoundEnabled] = React.useState<boolean>(true);
   const [saving, setSaving] = React.useState(false);
   const [pushEnabling, setPushEnabling] = React.useState(false);
@@ -133,9 +145,20 @@ export default function NotificationSettingsPage() {
     if (emailPrefData?.preference) {
       setDeliveryMode(emailPrefData.preference.deliveryMode ?? "instant");
       setDigestTime(emailPrefData.preference.digestTime ?? "08:00");
+      // Never saved yet → suggest the browser's zone (persisted on Save).
+      setTimeZone(
+        emailPrefData.saved
+          ? resolveTimeZone(emailPrefData.preference.digestTimezone)
+          : systemTimeZone()
+      );
       setSoundEnabled(emailPrefData.preference.soundEnabled ?? true);
     }
   }, [emailPrefData]);
+
+  // Read after mount — the browser's zone isn't known during the server render.
+  React.useEffect(() => {
+    setBrowserTimeZone(systemTimeZone());
+  }, []);
 
   async function saveEmailPrefs() {
     setSaving(true);
@@ -143,7 +166,11 @@ export default function NotificationSettingsPage() {
       await fetch("/api/me/email-preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deliveryMode, digestTime }),
+        body: JSON.stringify({
+          deliveryMode,
+          digestTime,
+          digestTimezone: timeZone,
+        }),
       });
       await mutateEmail();
     } finally {
@@ -287,6 +314,30 @@ export default function NotificationSettingsPage() {
               </Select>
             </div>
           )}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-4">
+            <Label className="sm:w-32 sm:shrink-0 sm:pt-2.5" htmlFor="email-tz">
+              Timezone
+            </Label>
+            <div className="w-full space-y-1.5 sm:w-80">
+              <TimezoneSelect
+                id="email-tz"
+                onChange={setTimeZone}
+                value={timeZone}
+              />
+              {browserTimeZone && browserTimeZone !== timeZone && (
+                <button
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setTimeZone(browserTimeZone)}
+                  type="button"
+                >
+                  Use my timezone ({browserTimeZone})
+                </button>
+              )}
+              <p className="text-xs text-base-content/60">
+                Used for your digest send time and the times shown in emails.
+              </p>
+            </div>
+          </div>
           <Button disabled={saving} onClick={saveEmailPrefs} size="sm">
             {saving ? "Saving..." : "Save email preferences"}
           </Button>

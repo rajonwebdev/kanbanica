@@ -129,6 +129,31 @@ describe("handleNotificationDigestScan", () => {
     expect(enqueueJobMock).toHaveBeenCalledTimes(2);
   });
 
+  it("schedules by the user's stored timezone, not the server's", async () => {
+    // 08:15Z is 13:45 in Kolkata and 04:15 in New York.
+    queueDigestUsers([
+      { userId: "in", digestTime: "13:30", digestTimezone: "Asia/Kolkata" },
+      { userId: "ny", digestTime: "08:00", digestTimezone: "America/New_York" },
+    ]);
+    await handleNotificationDigestScan([]);
+    expect(enqueueJobMock).toHaveBeenCalledTimes(1);
+    expect(enqueueJobMock.mock.calls[0][1]).toMatchObject({ userId: "in" });
+    expect(enqueueJobMock.mock.calls[0][2].singletonKey).toBe(
+      "digest-in-2024-06-01-13:30"
+    );
+  });
+
+  it("uses the user's local date in the dedupe key across midnight", async () => {
+    vi.setSystemTime(new Date("2024-06-01T18:35:00.000Z")); // 00:05 Jun 2 in Kolkata
+    queueDigestUsers([
+      { userId: "in", digestTime: "00:00", digestTimezone: "Asia/Kolkata" },
+    ]);
+    await handleNotificationDigestScan([]);
+    expect(enqueueJobMock.mock.calls[0][2].singletonKey).toBe(
+      "digest-in-2024-06-02-00:00"
+    );
+  });
+
   it("does nothing when there are no digest users", async () => {
     queueDigestUsers([]);
     await handleNotificationDigestScan([]);
