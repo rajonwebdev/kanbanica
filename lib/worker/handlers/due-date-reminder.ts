@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, not } from "drizzle-orm";
+import { and, eq, gte, lte, not } from "drizzle-orm";
 import type { Job } from "pg-boss";
 import {
   listStatus,
@@ -6,65 +6,72 @@ import {
   task,
   taskAssignee,
   taskWatcher,
+  workspace,
 } from "@/db/schema";
 import { db } from "@/lib/db";
 import { createNotifications } from "@/lib/notifications/create-notification";
+import { addCalendarDays, startOfDayInstant, todayIn } from "@/lib/timezone";
+
+interface ReminderTask {
+  id: string;
+  title: string;
+  /** Start of "today" in the task's workspace — the dedupe window. */
+  todayStart: Date;
+  workspaceId: string;
+}
 
 export async function handleDueDateReminder(
   _jobs: Job<Record<string, never>>[]
 ) {
   const now = new Date();
 
-  // Start of today (UTC)
-  const todayStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  );
-  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-  const tomorrowStart = todayEnd;
-  const tomorrowEnd = new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000);
-  const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
-
-  // Tasks due tomorrow (1-day reminder)
-  const dueTomorrow = await db
-    .select({ id: task.id, title: task.title, workspaceId: task.workspaceId })
+  // "Today" differs between workspaces (by at most a day either way from UTC),
+  // so fetch every open task due within that span once, then classify each
+  // against ITS workspace's today. Due dates are calendar days.
+  const utcToday = todayIn("UTC", now);
+  const candidates = await db
+    .select({
+      id: task.id,
+      title: task.title,
+      workspaceId: task.workspaceId,
+      dueDateEnd: task.dueDateEnd,
+      timezone: workspace.timezone,
+    })
     .from(task)
     .innerJoin(listStatus, eq(listStatus.id, task.statusId))
+    .innerJoin(workspace, eq(workspace.id, task.workspaceId))
     .where(
       and(
-        gte(task.dueDateEnd, tomorrowStart),
-        lt(task.dueDateEnd, tomorrowEnd),
+        gte(task.dueDateEnd, addCalendarDays(utcToday, -2)),
+        lte(task.dueDateEnd, addCalendarDays(utcToday, 2)),
         eq(task.isArchived, false),
         not(eq(listStatus.type, "CLOSED"))
       )
     );
 
-  // Tasks due today
-  const dueToday = await db
-    .select({ id: task.id, title: task.title, workspaceId: task.workspaceId })
-    .from(task)
-    .innerJoin(listStatus, eq(listStatus.id, task.statusId))
-    .where(
-      and(
-        gte(task.dueDateEnd, todayStart),
-        lt(task.dueDateEnd, todayEnd),
-        eq(task.isArchived, false),
-        not(eq(listStatus.type, "CLOSED"))
-      )
-    );
-
-  // Overdue tasks (due yesterday, not closed)
-  const overdueTasks = await db
-    .select({ id: task.id, title: task.title, workspaceId: task.workspaceId })
-    .from(task)
-    .innerJoin(listStatus, eq(listStatus.id, task.statusId))
-    .where(
-      and(
-        gte(task.dueDateEnd, yesterdayStart),
-        lt(task.dueDateEnd, todayStart),
-        eq(task.isArchived, false),
-        not(eq(listStatus.type, "CLOSED"))
-      )
-    );
+  const dueTomorrow: ReminderTask[] = [];
+  const dueToday: ReminderTask[] = [];
+  const overdueTasks: ReminderTask[] = [];
+  for (const c of candidates) {
+    if (!c.dueDateEnd) {
+      continue;
+    }
+    const today = todayIn(c.timezone, now);
+    const t: ReminderTask = {
+      id: c.id,
+      title: c.title,
+      workspaceId: c.workspaceId,
+      todayStart: startOfDayInstant(today, c.timezone),
+    };
+    if (c.dueDateEnd === addCalendarDays(today, 1)) {
+      dueTomorrow.push(t);
+    } else if (c.dueDateEnd === today) {
+      dueToday.push(t);
+    } else if (c.dueDateEnd === addCalendarDays(today, -1)) {
+      // Overdue reminder fires once, the day after the due day.
+      overdueTasks.push(t);
+    }
+  }
 
   async function getTaskRecipients(taskId: string): Promise<string[]> {
     const [assignees, watchers] = await Promise.all([
@@ -85,8 +92,9 @@ export async function handleDueDateReminder(
     ];
   }
 
+  // Once per workspace-local day: the job runs hourly.
   async function alreadyNotified(
-    taskId: string,
+    t: ReminderTask,
     triggerType: string
   ): Promise<boolean> {
     const todayNotifs = await db
@@ -94,9 +102,9 @@ export async function handleDueDateReminder(
       .from(notification)
       .where(
         and(
-          eq(notification.entityId, taskId),
+          eq(notification.entityId, t.id),
           eq(notification.triggerType, triggerType),
-          gte(notification.createdAt, todayStart)
+          gte(notification.createdAt, t.todayStart)
         )
       )
       .limit(1);
@@ -104,7 +112,7 @@ export async function handleDueDateReminder(
   }
 
   for (const t of dueTomorrow) {
-    if (await alreadyNotified(t.id, "due_date_reminder_1day")) {
+    if (await alreadyNotified(t, "due_date_reminder_1day")) {
       continue;
     }
     const recipients = await getTaskRecipients(t.id);
@@ -123,7 +131,7 @@ export async function handleDueDateReminder(
   }
 
   for (const t of dueToday) {
-    if (await alreadyNotified(t.id, "due_date_today")) {
+    if (await alreadyNotified(t, "due_date_today")) {
       continue;
     }
     const recipients = await getTaskRecipients(t.id);
@@ -142,7 +150,7 @@ export async function handleDueDateReminder(
   }
 
   for (const t of overdueTasks) {
-    if (await alreadyNotified(t.id, "task_overdue")) {
+    if (await alreadyNotified(t, "task_overdue")) {
       continue;
     }
     const recipients = await getTaskRecipients(t.id);

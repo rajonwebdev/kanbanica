@@ -159,6 +159,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { useListColumnPreferences } from "@/hooks/use-list-column-preferences";
 import {
   CUSTOM_FIELD_COLUMN_WIDTH_CLASS,
@@ -210,8 +211,8 @@ interface Task {
   assignees: { userId: string; name: string; image: string | null }[];
   customFieldValues?: Record<string, unknown>;
   dependencyInfo?: TaskDependencyIndicator;
-  dueDateEnd: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd: string | null;
+  dueDateStart: string | null;
   id: string;
   isPinnedToList: boolean;
   orderIndex: number;
@@ -2125,6 +2126,7 @@ export function ListView({
   }, []);
 
   // ─── Local Filtering & Sorting ─────────────────────────────────────────────
+  const workspaceToday = useWorkspaceToday();
   const processedTasks = React.useMemo(() => {
     const list = filterTasks(
       localTasks,
@@ -2134,6 +2136,7 @@ export function ListView({
         priorityFilter,
         assigneeFilter,
         customFieldFilters,
+        today: workspaceToday,
       },
       customFields,
       members
@@ -2181,6 +2184,7 @@ export function ListView({
     members,
     sortBy,
     sortOrder,
+    workspaceToday,
   ]);
 
   // Whether any filter narrows down the task set. When true, status/priority/

@@ -11,7 +11,6 @@ import {
   WarningIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { format, isPast, isThisWeek, isToday, startOfDay } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
@@ -34,6 +33,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { setTaskNavContext, type TaskNavContext } from "@/lib/task-nav-context";
+import {
+  type CalendarDay,
+  endOfWeekDay,
+  formatCalendarDay,
+  todayIn,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,20 +65,34 @@ const PRIORITY_CONFIG = {
   NONE: { label: "—", color: "text-base-content/40", icon: "😴" },
 } as const;
 
+// My Tasks spans workspaces, so "today" is per task — its own workspace's
+// timezone decides it. Cached per timezone within one pass.
+function todayLookup(): (task: MyTask) => CalendarDay {
+  const cache = new Map<string, CalendarDay>();
+  return (task) => {
+    const tz = task.workspace.timezone;
+    let today = cache.get(tz);
+    if (!today) {
+      today = todayIn(tz);
+      cache.set(tz, today);
+    }
+    return today;
+  };
+}
+
 function formatDue(task: MyTask): { label: string; overdue: boolean } | null {
-  const date = task.dueDateEnd ?? task.dueDateStart;
-  if (!date) {
+  const due = task.dueDateEnd ?? task.dueDateStart;
+  if (!due) {
     return null;
   }
-  const d = new Date(date);
-  const overdue = isPast(d) && !isToday(d) && task.status.type !== "CLOSED";
-  if (isToday(d)) {
+  const today = todayIn(task.workspace.timezone);
+  if (due === today) {
     return { label: "Today", overdue: false };
   }
-  if (overdue) {
-    return { label: format(d, "MMM d"), overdue: true };
-  }
-  return { label: format(d, "MMM d"), overdue: false };
+  return {
+    label: formatCalendarDay(due, "MMM d"),
+    overdue: due < today && task.status.type !== "CLOSED",
+  };
 }
 
 // Narrows the list to one bucket from the Workspace Overview "My Focus
@@ -112,7 +131,7 @@ function applyFocusFilter(
   if (focus === "review") {
     return tasks.filter((t) => isReviewStatus(t.status.name));
   }
-  const today = startOfDay(new Date());
+  const todayFor = todayLookup();
   return tasks.filter((t) => {
     if (t.status.type === "CLOSED") {
       return false;
@@ -121,13 +140,13 @@ function applyFocusFilter(
     if (!due) {
       return false;
     }
-    const d = startOfDay(new Date(due));
-    return focus === "overdue" ? d < today : isToday(d);
+    const today = todayFor(t);
+    return focus === "overdue" ? due < today : due === today;
   });
 }
 
 function groupByDueDate(tasks: MyTask[]): Group[] {
-  const today = startOfDay(new Date());
+  const todayFor = todayLookup();
 
   const overdue: MyTask[] = [];
   const dueToday: MyTask[] = [];
@@ -141,16 +160,17 @@ function groupByDueDate(tasks: MyTask[]): Group[] {
       noDate.push(t);
       continue;
     }
-    const d = startOfDay(new Date(date));
-    if (d < today) {
+    const today = todayFor(t);
+    if (date < today) {
       overdue.push(t);
       continue;
     }
-    if (isToday(d)) {
+    if (date === today) {
       dueToday.push(t);
       continue;
     }
-    if (isThisWeek(d, { weekStartsOn: 1 })) {
+    // Rest of the Monday–Sunday week containing today.
+    if (date <= endOfWeekDay(today)) {
       thisWeek.push(t);
       continue;
     }

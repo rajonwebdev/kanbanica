@@ -68,15 +68,14 @@ import { TopbarProvider, useTopbarState } from "@/lib/topbar-context";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 
-function formatSprintDate(date: Date | null, fmt: string): string {
-  if (!date) {
+// `day` is a calendar day ("YYYY-MM-DD") — sliced, never parsed, so it shows
+// the same day in every timezone.
+function formatSprintDate(day: string | null, fmt: string): string {
+  if (!day) {
     return "?";
   }
-  const d = new Date(date);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(2);
-  const yyyy = String(d.getFullYear());
+  const [yyyy, mm, dd] = day.split("-");
+  const yy = yyyy.slice(2);
   switch (fmt) {
     case "DD/MM":
       return `${dd}/${mm}`;
@@ -106,10 +105,10 @@ interface ListSummary {
 }
 
 interface SprintSummary {
-  endDate: Date | null;
+  endDate: string | null;
   id: string;
   name: string;
-  startDate: Date | null;
+  startDate: string | null;
   status: "PLANNED" | "ACTIVE" | "CLOSED";
 }
 

@@ -43,8 +43,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { useNoteImageUpload } from "@/hooks/use-note-image-upload";
 import { tiptapHasContent } from "@/lib/notes";
+import {
+  calendarDayFromLocalDate,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 type Priority = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -134,6 +139,7 @@ export function CreateTaskModal({
     { id: string; name: string; color: string }[]
   >([]);
   const [tagSearch, setTagSearch] = React.useState("");
+  const workspaceToday = useWorkspaceToday();
 
   React.useEffect(() => {
     if (open) {
@@ -217,7 +223,8 @@ export function CreateTaskModal({
       statusId,
       priority,
       description: hasImages ? undefined : doc,
-      dueDateEnd: dueDate,
+      // The picker hands back local midnight of the clicked day.
+      dueDateEnd: dueDate ? calendarDayFromLocalDate(dueDate) : null,
       assigneeIds,
       tagIds,
     });
@@ -558,7 +565,9 @@ export function CreateTaskModal({
                     // When opened from a Calendar day, allow any date (incl. past);
                     // otherwise keep the default "no past dates" restriction.
                     disabled={
-                      defaultDueDate ? undefined : { before: new Date() }
+                      defaultDueDate
+                        ? undefined
+                        : { before: localDateFromCalendarDay(workspaceToday) }
                     }
                     mode="single"
                     onSelect={(date) => {

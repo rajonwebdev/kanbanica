@@ -11,6 +11,7 @@ vi.mock("@/lib/email/index", () => ({ enqueueEmail: enqueueEmailMock }));
 
 interface QueryChain extends PromiseLike<unknown[]> {
   from: () => QueryChain;
+  leftJoin: () => QueryChain;
   limit: () => Promise<unknown[]>;
   where: () => QueryChain;
 }
@@ -18,6 +19,7 @@ interface QueryChain extends PromiseLike<unknown[]> {
 function createChain(result: unknown[]): QueryChain {
   const chain: QueryChain = {
     from: () => chain,
+    leftJoin: () => chain,
     where: () => chain,
     limit: () => Promise.resolve(result),
     // biome-ignore lint/suspicious/noThenProperty: mirrors Drizzle's own thenable query builder
@@ -156,5 +158,48 @@ describe("handleNotificationDigestSend", () => {
     const [{ text }] = enqueueEmailMock.mock.calls[0] as [{ text: string }];
     expect(text).toContain("First notification");
     expect(text).toContain("Second notification");
+  });
+
+  it("formats notification times in the user's stored timezone, not UTC", async () => {
+    queueSelectResults(
+      [
+        {
+          email: "u1@example.com",
+          name: "User One",
+          timeZone: "Asia/Kolkata",
+        },
+      ],
+      [
+        {
+          title: "Task assigned",
+          triggerType: "task_assigned",
+          createdAt: new Date("2026-10-05T12:00:00Z"),
+        },
+      ],
+      [{ triggerType: "task_assigned", emailEnabled: true }]
+    );
+    await handleNotificationDigestSend([job()]);
+    const [{ html, text }] = enqueueEmailMock.mock.calls[0] as [
+      { html: string; text: string },
+    ];
+    expect(text).toContain("Oct 5, 2026, 5:30 PM GMT+5:30");
+    expect(html).toContain("Oct 5, 2026, 5:30 PM GMT+5:30");
+  });
+
+  it("falls back to UTC when the user has no stored timezone", async () => {
+    queueSelectResults(
+      [{ email: "u1@example.com", name: "User One", timeZone: null }],
+      [
+        {
+          title: "Task assigned",
+          triggerType: "task_assigned",
+          createdAt: new Date("2026-10-05T12:00:00Z"),
+        },
+      ],
+      [{ triggerType: "task_assigned", emailEnabled: true }]
+    );
+    await handleNotificationDigestSend([job()]);
+    const [{ text }] = enqueueEmailMock.mock.calls[0] as [{ text: string }];
+    expect(text).toContain("Oct 5, 2026, 12:00 PM UTC");
   });
 });

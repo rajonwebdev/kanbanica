@@ -15,7 +15,6 @@ import {
   addMonths,
   format,
   isSameMonth,
-  isToday,
   isWeekend,
   subMonths,
 } from "date-fns";
@@ -37,9 +36,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { Switch } from "@/components/ui/switch";
 import { PRIORITY_OPTIONS } from "@/lib/filters/options";
 import { PRIORITY_CONFIG } from "@/lib/priority-config";
+import { localDateFromCalendarDay } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import {
   type CalendarTask,
@@ -173,6 +174,8 @@ export function MobileCalendar({
   weekDays: Date[];
 }) {
   const days = mobileMode === "week" ? weekDays : gridDays;
+  const workspaceToday = useWorkspaceToday();
+  const todayDate = localDateFromCalendarDay(workspaceToday);
 
   function goPrev() {
     onNavigate(
@@ -194,8 +197,8 @@ export function MobileCalendar({
 
   const isCurrentPeriod =
     mobileMode === "week"
-      ? weekDays.some((d) => isToday(d))
-      : isSameMonth(viewDate, new Date());
+      ? weekDays.some((d) => dayKey(d) === workspaceToday)
+      : isSameMonth(viewDate, todayDate);
 
   const assigneeOptions = [
     { value: "unassigned", label: "Unassigned" },
@@ -476,7 +479,7 @@ export function MobileCalendar({
           <button
             className="ml-0.5 h-8 shrink-0 rounded-md border border-base-300 px-2.5 text-xs font-semibold text-base-content transition-colors hover:bg-base-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
             disabled={isCurrentPeriod}
-            onClick={() => onNavigate(new Date())}
+            onClick={() => onNavigate(todayDate)}
             type="button"
           >
             Today
@@ -626,7 +629,7 @@ export function MobileCalendar({
         <button
           aria-label="Create task"
           className="fixed right-6 bottom-6 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-white shadow-2xl transition-all active:scale-95 hover:scale-105"
-          onClick={() => onCreateDay(new Date())}
+          onClick={() => onCreateDay(todayDate)}
           type="button"
         >
           <PlusIcon className="size-6" weight="bold" />
@@ -710,7 +713,7 @@ function MonthDayCell({
   statusById: Map<string, Status>;
   onOpen: () => void;
 }) {
-  const today = isToday(day);
+  const today = dayKey(day) === useWorkspaceToday();
   const weekend = isWeekend(day);
   const visible = tasks.slice(0, maxPreviews);
   const overflow = tasks.length - visible.length;
@@ -794,7 +797,7 @@ function WeekDayRow({
   statusById: Map<string, Status>;
   onOpen: () => void;
 }) {
-  const today = isToday(day);
+  const today = dayKey(day) === useWorkspaceToday();
   const weekend = isWeekend(day);
   const visible = tasks.slice(0, maxPreviews);
   const overflow = tasks.length - visible.length;

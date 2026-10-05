@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleDueDateReminder } from "@/lib/worker/handlers/due-date-reminder";
 
 const { selectMock, createNotificationsMock } = vi.hoisted(() => ({
@@ -40,19 +40,39 @@ function queueSelectResults(...batches: unknown[][]) {
   });
 }
 
-const noTasks: unknown[] = [];
+// Pinned "now": 2026-10-05 12:00 UTC — Oct 5 in UTC, India and New York.
+const NOW = new Date("2026-10-05T12:00:00Z");
+
+/** A candidate row as the single due-window query returns it. */
+function dueTask(
+  id: string,
+  dueDateEnd: string,
+  overrides: Partial<{ title: string; timezone: string }> = {}
+) {
+  return {
+    id,
+    title: overrides.title ?? `Task ${id}`,
+    workspaceId: "w1",
+    dueDateEnd,
+    timezone: overrides.timezone ?? "UTC",
+  };
+}
 
 beforeEach(() => {
   selectMock.mockReset();
   createNotificationsMock.mockReset();
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("handleDueDateReminder", () => {
   it("sends a 1-day reminder for a task due tomorrow", async () => {
     queueSelectResults(
-      [{ id: "t1", title: "Task 1", workspaceId: "w1" }], // due tomorrow
-      noTasks, // due today
-      noTasks, // overdue
+      [dueTask("t1", "2026-10-06")],
       [], // alreadyNotified check
       [{ userId: "u1" }], // assignees
       [] // watchers
@@ -69,9 +89,7 @@ describe("handleDueDateReminder", () => {
 
   it("sends a due-today reminder for a task due today", async () => {
     queueSelectResults(
-      noTasks,
-      [{ id: "t2", title: "Task 2", workspaceId: "w1" }],
-      noTasks,
+      [dueTask("t2", "2026-10-05")],
       [],
       [{ userId: "u1" }],
       []
@@ -82,11 +100,9 @@ describe("handleDueDateReminder", () => {
     );
   });
 
-  it("sends an overdue reminder for an overdue task", async () => {
+  it("sends an overdue reminder the day after the due day", async () => {
     queueSelectResults(
-      noTasks,
-      noTasks,
-      [{ id: "t3", title: "Task 3", workspaceId: "w1" }],
+      [dueTask("t3", "2026-10-04")],
       [],
       [{ userId: "u1" }],
       []
@@ -97,51 +113,75 @@ describe("handleDueDateReminder", () => {
     );
   });
 
-  it("skips a task that was already notified today, without querying recipients", async () => {
+  it("does not remind about tasks due further out or long overdue", async () => {
+    queueSelectResults([
+      dueTask("t4", "2026-10-07"),
+      dueTask("t5", "2026-10-03"),
+    ]);
+    await handleDueDateReminder([]);
+    expect(createNotificationsMock).not.toHaveBeenCalled();
+    expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("decides 'today' per workspace timezone", async () => {
+    // 20:00 UTC on Oct 5 = 01:30 Oct 6 in India, 16:00 Oct 5 in New York.
+    vi.setSystemTime(new Date("2026-10-05T20:00:00Z"));
     queueSelectResults(
-      [{ id: "t1", title: "Task 1", workspaceId: "w1" }],
-      noTasks,
-      noTasks,
-      [{ id: "existing-notif" }] // already notified
+      [
+        dueTask("india", "2026-10-06", { timezone: "Asia/Kolkata" }),
+        dueTask("newyork", "2026-10-06", { timezone: "America/New_York" }),
+      ],
+      [], // alreadyNotified (newyork, due tomorrow — processed first)
+      [{ userId: "u1" }],
+      [],
+      [], // alreadyNotified (india, due today)
+      [{ userId: "u1" }],
+      []
     );
     await handleDueDateReminder([]);
-    expect(selectMock).toHaveBeenCalledTimes(4);
+    expect(createNotificationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: "india",
+        triggerType: "due_date_today",
+      })
+    );
+    expect(createNotificationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: "newyork",
+        triggerType: "due_date_reminder_1day",
+      })
+    );
+  });
+
+  it("skips a task that was already notified today, without querying recipients", async () => {
+    queueSelectResults([dueTask("t1", "2026-10-06")], [{ id: "n1" }]);
+    await handleDueDateReminder([]);
+    expect(selectMock).toHaveBeenCalledTimes(2);
     expect(createNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("skips a task with no assignees or watchers", async () => {
-    queueSelectResults(
-      [{ id: "t1", title: "Task 1", workspaceId: "w1" }],
-      noTasks,
-      noTasks,
-      [],
-      [], // no assignees
-      [] // no watchers
-    );
+    queueSelectResults([dueTask("t1", "2026-10-06")], [], [], []);
     await handleDueDateReminder([]);
     expect(createNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("deduplicates a user who is both assignee and watcher", async () => {
     queueSelectResults(
-      [{ id: "t1", title: "Task 1", workspaceId: "w1" }],
-      noTasks,
-      noTasks,
+      [dueTask("t1", "2026-10-06")],
       [],
       [{ userId: "u1" }],
-      [{ userId: "u1" }]
+      [{ userId: "u1" }, { userId: "u2" }]
     );
     await handleDueDateReminder([]);
     expect(createNotificationsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientIds: ["u1"] })
+      expect.objectContaining({ recipientIds: ["u1", "u2"] })
     );
   });
 
   it("includes the task title in the notification message", async () => {
     queueSelectResults(
-      [{ id: "t1", title: "Ship the release", workspaceId: "w1" }],
-      noTasks,
-      noTasks,
+      [dueTask("t1", "2026-10-06", { title: "Ship the release" })],
       [],
       [{ userId: "u1" }],
       []

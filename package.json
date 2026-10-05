@@ -1,6 +1,6 @@
 {
   "name": "kanbanica",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A modern, open-source project management tool for teams — workspaces, projects, boards, sprints, and tasks with real-time collaboration.",
   "type": "module",
   "private": true,
@@ -49,6 +49,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:migrate:prod": "tsx scripts/migrate.ts",
+    "tz:dry-run": "tsx scripts/timezone-dry-run.ts",
     "db:reset": "tsx db/reset.ts && pnpm db:migrate",
     "make:admin": "tsx scripts/make-admin.ts",
     "create:admin": "tsx scripts/create-admin.ts"

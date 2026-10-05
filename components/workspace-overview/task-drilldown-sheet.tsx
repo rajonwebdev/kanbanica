@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { describeDeadline } from "@/lib/deadline-format";
 import { PRIORITY_CONFIG, type Priority } from "@/lib/priority-config";
 
@@ -64,8 +65,9 @@ function DrilldownRow({
   task: WorkspaceOverviewTaskRef;
 }) {
   const cfg = PRIORITY_CONFIG[task.priority];
+  const workspaceToday = useWorkspaceToday();
   const deadline = task.dueDate
-    ? describeDeadline(new Date(task.dueDate))
+    ? describeDeadline(task.dueDate, workspaceToday)
     : null;
   return (
     <Link

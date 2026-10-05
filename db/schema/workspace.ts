@@ -43,6 +43,11 @@ export const workspace = pgTable("workspace", {
   // Accent color only — workspace-wide branding, admin-controlled. Light/dark/
   // auto is a personal preference, not workspace state — see `user.appearanceMode`.
   theme: text("theme").notNull().default("forest"),
+  // IANA timezone (e.g. "Asia/Kolkata") that decides calendar days for the
+  // whole workspace — today, overdue, sprint boundaries. Exact timestamps are
+  // still stored in UTC and shown in each viewer's own timezone. See
+  // lib/timezone.ts.
+  timezone: text("timezone").notNull().default("UTC"),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

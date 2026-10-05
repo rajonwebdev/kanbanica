@@ -45,7 +45,10 @@ export interface ExportResult {
   rows: Record<string, string>[];
 }
 
-function formatDate(d: Date | null): string {
+function formatDate(d: Date | string | null): string {
+  if (typeof d === "string") {
+    return d;
+  }
   return d ? d.toISOString() : "";
 }
 

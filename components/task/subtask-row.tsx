@@ -20,6 +20,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
+import {
+  calendarDayFromLocalDate,
+  isCalendarDay,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 type StatusType = "OPEN" | "ACTIVE" | "CLOSED";
@@ -33,8 +39,8 @@ interface Assignee {
 
 export interface SubtaskRowData {
   assignees: Assignee[];
-  dueDateEnd: Date | string | null;
-  dueDateStart: Date | string | null;
+  dueDateEnd: string | null;
+  dueDateStart: string | null;
   id: string;
   listId: string | null;
   seqNumber: number;
@@ -72,12 +78,10 @@ const STATUS_GROUPS: { type: StatusType; label: string }[] = [
   { type: "CLOSED", label: "Closed" },
 ];
 
-function toDate(v: Date | string | null): Date | null {
-  if (!v) {
-    return null;
-  }
-  const d = v instanceof Date ? v : new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
+// Due dates are calendar days ("YYYY-MM-DD"); the local-midnight Date of that
+// day feeds the picker and format() without shifting it.
+function toDate(v: string | null): Date | null {
+  return v && isCalendarDay(v) ? localDateFromCalendarDay(v) : null;
 }
 
 export function SubtaskRow({
@@ -130,8 +134,9 @@ export function SubtaskRow({
   const isClosed =
     (statuses.find((s) => s.id === statusId)?.type ?? subtask.statusType) ===
     "CLOSED";
+  const workspaceToday = useWorkspaceToday();
   const overdue =
-    !!dueEnd && !isClosed && dueEnd < new Date(new Date().setHours(0, 0, 0, 0));
+    !!dueEnd && !isClosed && calendarDayFromLocalDate(dueEnd) < workspaceToday;
 
   async function chooseStatus(s: { id: string }) {
     setStatusOpen(false);
@@ -179,10 +184,12 @@ export function SubtaskRow({
 
   async function setDueDate(date: Date | null) {
     setDueOpen(false);
+    // Picker value is local midnight of the clicked day → that calendar day.
+    const day = date ? calendarDayFromLocalDate(date) : null;
     const patch =
-      dueStart && date
-        ? { dueDateEnd: date }
-        : { dueDateStart: date, dueDateEnd: date };
+      dueStart && day
+        ? { dueDateEnd: day }
+        : { dueDateStart: day, dueDateEnd: day };
     setDueEnd(date);
     if (date && !dueStart) {
       setDueStart(date);

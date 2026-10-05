@@ -1,10 +1,16 @@
 import { and, eq, gte, lt } from "drizzle-orm";
 import type { Job } from "pg-boss";
 import { PRODUCT_NAME } from "@/config/platform";
-import { notification, user, userNotificationPreference } from "@/db/schema";
+import {
+  notification,
+  user,
+  userEmailPreference,
+  userNotificationPreference,
+} from "@/db/schema";
 import { db } from "@/lib/db";
 import { enqueueEmail } from "@/lib/email/index";
 import { emailDefaultFor } from "@/lib/notifications/types";
+import { formatInstantInTimeZone } from "@/lib/timezone";
 
 interface DigestSendPayload {
   userId: string;
@@ -25,9 +31,16 @@ async function processDigest({
   windowStart,
   windowEnd,
 }: DigestSendPayload) {
+  // The user's stored timezone (the same one that schedules their digest) —
+  // an email has no browser to localise times, so format them in it.
   const [userRow] = await db
-    .select({ email: user.email, name: user.name })
+    .select({
+      email: user.email,
+      name: user.name,
+      timeZone: userEmailPreference.digestTimezone,
+    })
     .from(user)
+    .leftJoin(userEmailPreference, eq(userEmailPreference.userId, user.id))
     .where(eq(user.id, userId))
     .limit(1);
 
@@ -71,11 +84,14 @@ async function processDigest({
     return;
   }
 
+  const formatTime = (at: Date) =>
+    formatInstantInTimeZone(at, userRow.timeZone ?? "UTC");
+
   const rows = notifications
     .map(
       (n) => `<tr>
         <td style="padding: 8px 12px; border-bottom: 1px solid #eee;">${escapeHtml(n.title)}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #eee; color: #666; font-size: 12px;">${n.createdAt.toUTCString()}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #eee; color: #666; font-size: 12px;">${formatTime(n.createdAt)}</td>
       </tr>`
     )
     .join("");
@@ -100,7 +116,7 @@ async function processDigest({
   `;
 
   const text = notifications
-    .map((n) => `- ${n.title} (${n.createdAt.toUTCString()})`)
+    .map((n) => `- ${n.title} (${formatTime(n.createdAt)})`)
     .join("\n");
 
   await enqueueEmail({

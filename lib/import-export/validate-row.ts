@@ -1,4 +1,5 @@
 import type { CustomFieldRow } from "@/app/actions/custom-field";
+import { type CalendarDay, coerceCalendarDay } from "@/lib/timezone";
 import { validateCustomFieldValue } from "@/lib/custom-fields/validation";
 import {
   FIXED_MAPPABLE_FIELDS,
@@ -51,8 +52,8 @@ export interface MappedTaskData {
   // fieldId -> validated value, ready for customFieldValue insertion.
   customFieldValues: Record<string, unknown>;
   description: string | null;
-  dueDateEnd: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd: CalendarDay | null;
+  dueDateStart: CalendarDay | null;
   parentRef: ParentRef;
   priority: Priority;
   statusId: string | null;
@@ -204,16 +205,16 @@ export async function validateImportRow(
   }
 
   // ─── Dates ───────────────────────────────────────────────────────────────
-  function parseDate(raw: string, label: string): Date | null {
+  function parseDate(raw: string, label: string): CalendarDay | null {
     if (!raw) {
       return null;
     }
-    const d = new Date(raw);
-    if (Number.isNaN(d.getTime())) {
+    const day = coerceCalendarDay(raw);
+    if (!day) {
       errors.push(`${label} "${raw}" is not a valid date`);
       return null;
     }
-    return d;
+    return day;
   }
   const dueDateStartRaw = cell(row, mapping, "dueDateStart");
   const dueDateEndRaw = cell(row, mapping, "dueDateEnd");
@@ -222,7 +223,7 @@ export async function validateImportRow(
   if (
     dueDateStart &&
     dueDateEnd &&
-    dueDateEnd.getTime() < dueDateStart.getTime()
+    dueDateEnd < dueDateStart
   ) {
     warnings.push("Due date is before the start date");
   }
@@ -411,7 +412,7 @@ export function detectDuplicateRowIndexes(
       data.title.toLowerCase(),
       data.statusId ?? "",
       [...data.assigneeIds].sort().join(","),
-      data.dueDateEnd?.toISOString() ?? "",
+      data.dueDateEnd ?? "",
     ].join("|");
     if (seen.has(key)) {
       duplicates.add(rowIndex);

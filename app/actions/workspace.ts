@@ -30,6 +30,7 @@ import { createNotifications } from "@/lib/notifications/create-notification";
 import { getWorkspaceMembership } from "@/lib/permissions";
 import { rateLimit } from "@/lib/rate-limit";
 import { refreshWorkspace } from "@/lib/realtime/refresh";
+import { canonicalTimeZone, isValidTimeZone } from "@/lib/timezone";
 import {
   isValidTaskLimit,
   MAX_TASK_LIMIT,
@@ -73,6 +74,8 @@ export async function updateWorkspace(data: {
   name: string;
   slug: string;
   logoEmoji: string | null;
+  /** IANA timezone, e.g. "Asia/Kolkata". Omit to leave unchanged. */
+  timezone?: string;
 }): Promise<{ ok: true } | { error: string }> {
   const session = await requireSession();
   if (!session) {
@@ -95,6 +98,9 @@ export async function updateWorkspace(data: {
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
     return { error: "Invalid slug format" };
   }
+  if (data.timezone !== undefined && !isValidTimeZone(data.timezone)) {
+    return { error: "Choose a valid timezone" };
+  }
 
   // Check slug uniqueness
   const existing = await db
@@ -107,7 +113,17 @@ export async function updateWorkspace(data: {
 
   await db
     .update(workspace)
-    .set({ name, slug, logoEmoji: data.logoEmoji, updatedAt: new Date() })
+    .set({
+      name,
+      slug,
+      logoEmoji: data.logoEmoji,
+      // Calendar days (due dates, sprint dates) don't move when this changes —
+      // only where each day starts and ends does.
+      ...(data.timezone !== undefined && {
+        timezone: canonicalTimeZone(data.timezone),
+      }),
+      updatedAt: new Date(),
+    })
     .where(eq(workspace.id, data.workspaceId));
 
   void refreshWorkspace(data.workspaceId);

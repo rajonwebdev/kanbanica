@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sprint, taskSprint } from "@/db/schema";
 import {
-  addDays,
   closeSprintAndRollover,
   incrementSprintName,
+  sprintEndDay,
 } from "@/lib/sprint/rollover";
 
 const {
@@ -119,29 +119,21 @@ beforeEach(() => {
   stubUpdate();
 });
 
-describe("addDays", () => {
-  it("adds positive days", () => {
-    expect(addDays(new Date("2024-01-01T00:00:00Z"), 5)).toEqual(
-      new Date("2024-01-06T00:00:00Z")
-    );
+describe("sprintEndDay", () => {
+  it("makes a 1-week sprint exactly 7 calendar days, both ends inclusive", () => {
+    expect(sprintEndDay("2026-10-05", 1)).toBe("2026-10-11");
   });
 
-  it("subtracts for negative days", () => {
-    expect(addDays(new Date("2024-01-10T00:00:00Z"), -3)).toEqual(
-      new Date("2024-01-07T00:00:00Z")
-    );
+  it("makes an N-week sprint N×7 days", () => {
+    expect(sprintEndDay("2026-10-05", 2)).toBe("2026-10-18");
+    expect(sprintEndDay("2026-10-05", 4)).toBe("2026-11-01");
   });
 
-  it("rolls over month/year boundaries", () => {
-    expect(addDays(new Date("2024-01-31T00:00:00Z"), 1)).toEqual(
-      new Date("2024-02-01T00:00:00Z")
-    );
-  });
-
-  it("does not mutate the input date", () => {
-    const original = new Date("2024-01-01T00:00:00Z");
-    addDays(original, 5);
-    expect(original).toEqual(new Date("2024-01-01T00:00:00Z"));
+  it("crosses month, year and DST boundaries without drifting", () => {
+    expect(sprintEndDay("2026-12-28", 1)).toBe("2027-01-03");
+    // EU fall-back (Oct 25) and US fall-back (Nov 1) inside the sprint.
+    expect(sprintEndDay("2026-10-21", 1)).toBe("2026-10-27");
+    expect(sprintEndDay("2026-10-28", 1)).toBe("2026-11-03");
   });
 });
 
@@ -194,7 +186,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 1",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -222,7 +214,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -247,7 +239,48 @@ describe("closeSprintAndRollover", () => {
       spaceId: "sp1",
       name: incrementSprintName("Sprint 5"),
       status: "PLANNED",
+      // Day after the closed sprint's last day; 2 weeks = 14 days inclusive.
+      startDate: "2024-01-02",
+      endDate: "2024-01-15",
     });
+  });
+
+  it("starts the next sprint on 'today' in the WORKSPACE timezone when the closed one had no end date", async () => {
+    vi.useFakeTimers();
+    // 20:00 UTC on Oct 5 is already Oct 6 in India.
+    vi.setSystemTime(new Date("2026-10-05T20:00:00Z"));
+    try {
+      queueSelectResults(
+        [
+          {
+            status: "ACTIVE",
+            name: "Sprint 1",
+            endDate: null,
+            durationWeeks: 1,
+            timezone: "Asia/Kolkata",
+          },
+        ],
+        [],
+        []
+      );
+      await closeSprintAndRollover({
+        spaceId: "sp1",
+        sprintId: "s1",
+        actorId: "u1",
+        incompleteStrategy: "move_to_backlog",
+        autoCreateNext: true,
+      });
+      const [, values] = insertValuesSpy.mock.calls[0] as [
+        unknown,
+        Record<string, unknown>,
+      ];
+      expect(values).toMatchObject({
+        startDate: "2026-10-06",
+        endDate: "2026-10-12",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reuses an existing PLANNED sprint instead of creating a new one", async () => {
@@ -256,7 +289,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -280,7 +313,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -306,7 +339,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -330,7 +363,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -365,7 +398,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],
@@ -388,7 +421,7 @@ describe("closeSprintAndRollover", () => {
         {
           status: "ACTIVE",
           name: "Sprint 5",
-          endDate: new Date("2024-01-01T00:00:00Z"),
+          endDate: "2024-01-01",
           durationWeeks: 2,
         },
       ],

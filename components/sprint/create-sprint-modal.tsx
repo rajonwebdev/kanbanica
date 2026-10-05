@@ -1,7 +1,6 @@
 "use client";
 
 import { CalendarBlankIcon, LightningIcon } from "@phosphor-icons/react";
-import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { createSprint, getCreateSprintDefaults } from "@/app/actions/sprint";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { sprintEndDay } from "@/lib/sprint/dates";
+import {
+  calendarDayFromLocalDate,
+  formatCalendarDay,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,12 +40,6 @@ interface CreateSprintModalProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function addWeeks(date: Date, weeks: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + weeks * 7);
-  return d;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CreateSprintModal({
@@ -53,14 +52,16 @@ export function CreateSprintModal({
 }: CreateSprintModalProps) {
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
-  const [startDate, setStartDate] = useState<Date | null>(null);
+  // Calendar day ("YYYY-MM-DD").
+  const [startDate, setStartDate] = useState<string | null>(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [durationWeeks, setDurationWeeks] = useState(2);
   const [sprintStartDay, setSprintStartDay] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const endDate = startDate ? addWeeks(startDate, durationWeeks) : null;
+  // Inclusive end: a 1-week sprint is 7 calendar days.
+  const endDate = startDate ? sprintEndDay(startDate, durationWeeks) : null;
 
   // Load smart defaults when opened
   useEffect(() => {
@@ -201,7 +202,7 @@ export function CreateSprintModal({
                       }
                     >
                       {startDate
-                        ? format(startDate, "MMM d, yyyy")
+                        ? formatCalendarDay(startDate, "MMM d, yyyy")
                         : "Pick a date"}
                     </span>
                   </button>
@@ -215,10 +216,16 @@ export function CreateSprintModal({
                     }
                     mode="single"
                     onSelect={(date) => {
-                      setStartDate(date ?? null);
+                      setStartDate(
+                        date ? calendarDayFromLocalDate(date) : null
+                      );
                       setStartDateOpen(false);
                     }}
-                    selected={startDate ?? undefined}
+                    selected={
+                      startDate
+                        ? localDateFromCalendarDay(startDate)
+                        : undefined
+                    }
                   />
                 </PopoverContent>
               </Popover>
@@ -239,7 +246,7 @@ export function CreateSprintModal({
                   }
                 >
                   {endDate
-                    ? format(endDate, "MMM d, yyyy")
+                    ? formatCalendarDay(endDate, "MMM d, yyyy")
                     : `${durationWeeks}w from start`}
                 </span>
               </div>

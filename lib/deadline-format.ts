@@ -1,29 +1,36 @@
 import {
-  differenceInCalendarDays,
-  format,
-  isToday,
-  isTomorrow,
-  startOfDay,
-} from "date-fns";
+  addCalendarDays,
+  type CalendarDay,
+  diffCalendarDays,
+  formatCalendarDay,
+} from "@/lib/timezone";
 
-/** "5 days overdue" / "Due today" / "Due tomorrow" / "Due Mon, Jan 5" — from the date alone. */
-export function describeDeadline(dueDate: Date): {
+/**
+ * "5 days overdue" / "Due today" / "Due tomorrow" / "Due Mon, Jan 5" — for a
+ * due date (calendar day), relative to `today` in the WORKSPACE timezone.
+ */
+export function describeDeadline(
+  dueDate: CalendarDay,
+  today: CalendarDay
+): {
   text: string;
   overdue: boolean;
 } {
-  const today = startOfDay(new Date());
   if (dueDate < today) {
-    const days = differenceInCalendarDays(today, dueDate);
+    const days = diffCalendarDays(today, dueDate);
     return {
       text: `${days} day${days === 1 ? "" : "s"} overdue`,
       overdue: true,
     };
   }
-  if (isToday(dueDate)) {
+  if (dueDate === today) {
     return { text: "Due today", overdue: false };
   }
-  if (isTomorrow(dueDate)) {
+  if (dueDate === addCalendarDays(today, 1)) {
     return { text: "Due tomorrow", overdue: false };
   }
-  return { text: `Due ${format(dueDate, "EEE, MMM d")}`, overdue: false };
+  return {
+    text: `Due ${formatCalendarDay(dueDate, "EEE, MMM d")}`,
+    overdue: false,
+  };
 }

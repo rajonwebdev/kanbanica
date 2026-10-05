@@ -1,5 +1,6 @@
 import type { CustomFieldConfig } from "@/db/schema";
 import { getWorkspaceMembership } from "@/lib/permissions";
+import { isCalendarDay } from "@/lib/timezone";
 
 export interface CustomFieldLike {
   config: CustomFieldConfig;
@@ -82,14 +83,11 @@ export async function validateCustomFieldValue(
     }
 
     case "DATE": {
-      const date =
-        typeof value === "string" || typeof value === "number"
-          ? new Date(value)
-          : null;
-      if (!date || Number.isNaN(date.getTime())) {
-        return { error: "Value must be a valid date" };
+      // A calendar day ("YYYY-MM-DD") — the same day for every viewer.
+      if (typeof value !== "string" || !isCalendarDay(value)) {
+        return { error: "Value must be a valid date (YYYY-MM-DD)" };
       }
-      return { value: date.toISOString() };
+      return { value };
     }
 
     case "PERSON": {

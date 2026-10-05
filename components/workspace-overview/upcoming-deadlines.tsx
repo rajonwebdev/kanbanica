@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import {
   type DrilldownRequest,
   TaskDrilldownSheet,
@@ -85,8 +86,9 @@ function DeadlineRow({
   bucketKey: BucketKey;
   dotClass: string;
 }) {
+  const workspaceToday = useWorkspaceToday();
   const deadline = task.dueDate
-    ? describeDeadline(new Date(task.dueDate))
+    ? describeDeadline(task.dueDate, workspaceToday)
     : null;
   return (
     <Link

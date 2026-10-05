@@ -16,10 +16,11 @@ import {
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getAccessibleSpaceIds } from "@/lib/permissions";
+import { resolveTimeZone } from "@/lib/timezone";
 
 export interface MyTask {
-  dueDateEnd: Date | null;
-  dueDateStart: Date | null;
+  dueDateEnd: string | null;
+  dueDateStart: string | null;
   id: string;
   list: { id: string; name: string };
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -38,7 +39,8 @@ export interface MyTask {
   };
   tags: { id: string; name: string; color: string }[];
   title: string;
-  workspace: { id: string; name: string };
+  /** `timezone` decides "today"/"overdue" for this task's due date. */
+  workspace: { id: string; name: string; timezone: string };
 }
 
 export type MyTasksGroupBy =
@@ -117,6 +119,7 @@ export async function getMyTasks(options?: {
       spaceLogoEmoji: space.logoEmoji,
       workspaceId: workspace.id,
       workspaceName: workspace.name,
+      workspaceTimezone: workspace.timezone,
     })
     .from(task)
     .innerJoin(listStatus, eq(task.statusId, listStatus.id))
@@ -184,7 +187,11 @@ export async function getMyTasks(options?: {
       color: r.spaceColor,
       logoEmoji: r.spaceLogoEmoji,
     },
-    workspace: { id: r.workspaceId, name: r.workspaceName },
+    workspace: {
+      id: r.workspaceId,
+      name: r.workspaceName,
+      timezone: resolveTimeZone(r.workspaceTimezone),
+    },
     tags: tagsByTask.get(r.id) ?? [],
   }));
 

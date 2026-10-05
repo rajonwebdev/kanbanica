@@ -55,6 +55,7 @@ import {
 } from "@/lib/permissions";
 import { refreshWorkspace } from "@/lib/realtime/refresh";
 import { storage } from "@/lib/storage";
+import { parseCalendarDayInput } from "@/lib/timezone";
 import { requireTaskCapacity } from "@/lib/workspace-limits";
 
 // ─── Permission helpers ──────────────────────────────────────────────────────
@@ -143,8 +144,8 @@ export async function createTask(
     statusId?: string;
     priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
     description?: unknown;
-    dueDateStart?: Date | null;
-    dueDateEnd?: Date | null;
+    dueDateStart?: string | null;
+    dueDateEnd?: string | null;
     assigneeIds?: string[];
     tagIds?: string[];
   }
@@ -162,6 +163,15 @@ export async function createTask(
   const title = data.title.trim();
   if (!title) {
     return { error: "Task title is required" };
+  }
+
+  let dueDateStart: string | null | undefined;
+  let dueDateEnd: string | null | undefined;
+  try {
+    dueDateStart = parseCalendarDayInput(data.dueDateStart);
+    dueDateEnd = parseCalendarDayInput(data.dueDateEnd);
+  } catch {
+    return { error: "Invalid due date" };
   }
 
   let statusId: string | undefined = data.statusId || undefined;
@@ -236,8 +246,8 @@ export async function createTask(
       title,
       description: (data.description as Record<string, unknown>) ?? null,
       priority: data.priority ?? "NONE",
-      dueDateStart: data.dueDateStart ?? null,
-      dueDateEnd: data.dueDateEnd ?? null,
+      dueDateStart: dueDateStart ?? null,
+      dueDateEnd: dueDateEnd ?? null,
       reporterId: session.user.id,
       orderIndex: taskSeq * 1000,
     });
@@ -625,8 +635,8 @@ export async function updateTask(
     title?: string;
     priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
     description?: unknown;
-    dueDateStart?: Date | null;
-    dueDateEnd?: Date | null;
+    dueDateStart?: string | null;
+    dueDateEnd?: string | null;
     timeEstimate?: number | null;
   }
 ): Promise<{ ok: true } | { error: string }> {
@@ -657,6 +667,15 @@ export async function updateTask(
     .limit(1);
   if (!existing) {
     return { error: "Task not found" };
+  }
+
+  let dueDateStart: string | null | undefined;
+  let dueDateEnd: string | null | undefined;
+  try {
+    dueDateStart = parseCalendarDayInput(data.dueDateStart);
+    dueDateEnd = parseCalendarDayInput(data.dueDateEnd);
+  } catch {
+    return { error: "Invalid due date" };
   }
 
   const updates: Partial<typeof task.$inferInsert> = { updatedAt: new Date() };
@@ -748,11 +767,11 @@ export async function updateTask(
     }
   }
 
-  if (data.dueDateStart !== undefined) {
-    updates.dueDateStart = data.dueDateStart;
+  if (dueDateStart !== undefined) {
+    updates.dueDateStart = dueDateStart;
   }
-  if (data.dueDateEnd !== undefined) {
-    updates.dueDateEnd = data.dueDateEnd;
+  if (dueDateEnd !== undefined) {
+    updates.dueDateEnd = dueDateEnd;
   }
   if (data.timeEstimate !== undefined) {
     updates.timeEstimate = data.timeEstimate;
@@ -765,12 +784,11 @@ export async function updateTask(
   await Promise.all(logs.map((fn) => fn()));
 
   // Notify watchers of due date change
-  // Only when the due date actually changed (compare timestamps; null-safe) —
-  // matches the priority guard, so re-saving the same date sends nothing.
+  // Only when the due date actually changed (calendar days compare as strings;
+  // null-safe) — matches the priority guard, so re-saving the same date sends
+  // nothing.
   const dueDateEndChanged =
-    data.dueDateEnd !== undefined &&
-    (data.dueDateEnd?.getTime() ?? null) !==
-      (existing.dueDateEnd?.getTime() ?? null);
+    dueDateEnd !== undefined && dueDateEnd !== existing.dueDateEnd;
   if (dueDateEndChanged) {
     const dueDateWatchers = await db
       .select({ userId: taskWatcher.userId })

@@ -5,7 +5,6 @@
 // Server-only (imports db). Assignee/tags/sprint use subqueries so they compose
 // with LIMIT — no post-fetch JS filtering.
 
-import { endOfDay, endOfWeek, startOfDay, startOfWeek } from "date-fns";
 import {
   and,
   gte,
@@ -20,6 +19,7 @@ import {
 import { listStatus, task, taskAssignee, taskTag } from "@/db/schema";
 import { taskSprint } from "@/db/schema/sprint";
 import { db } from "@/lib/db";
+import { type CalendarDay, endOfWeekDay, startOfWeekDay } from "@/lib/timezone";
 import type { TaskFilters } from "./options";
 
 type PriorityValue = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -31,8 +31,15 @@ type PriorityValue = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
  * Note: a `statusType` filter references `listStatus.type`, so the caller's query
  * MUST innerJoin `listStatus` (globalSearch does). Callers that filter by concrete
  * `status` IDs (getFilteredTasks) don't need that join.
+ *
+ * `today` is today's calendar day in the WORKSPACE timezone (see
+ * getWorkspaceToday) — due dates are calendar days, so "today"/"overdue"/"this
+ * week" are day comparisons, never instant comparisons.
  */
-export function buildTaskFilterConditions(filters: TaskFilters): SQL[] {
+export function buildTaskFilterConditions(
+  filters: TaskFilters,
+  today: CalendarDay
+): SQL[] {
   const conditions: SQL[] = [];
 
   if (filters.status?.length) {
@@ -50,15 +57,16 @@ export function buildTaskFilterConditions(filters: TaskFilters): SQL[] {
   }
 
   if (filters.due) {
-    const now = new Date();
     if (filters.due === "overdue") {
-      conditions.push(lt(task.dueDateEnd, now));
+      // Strictly before today: a task due today is "due today", not overdue.
+      conditions.push(lt(task.dueDateEnd, today));
     } else if (filters.due === "today") {
-      conditions.push(gte(task.dueDateEnd, startOfDay(now)));
-      conditions.push(lte(task.dueDateEnd, endOfDay(now)));
+      conditions.push(gte(task.dueDateEnd, today));
+      conditions.push(lte(task.dueDateEnd, today));
     } else if (filters.due === "this_week") {
-      conditions.push(gte(task.dueDateEnd, startOfWeek(now)));
-      conditions.push(lte(task.dueDateEnd, endOfWeek(now)));
+      // Monday–Sunday week containing today.
+      conditions.push(gte(task.dueDateEnd, startOfWeekDay(today)));
+      conditions.push(lte(task.dueDateEnd, endOfWeekDay(today)));
     } else if (filters.due === "no_due_date") {
       conditions.push(isNull(task.dueDateEnd));
     }
@@ -130,7 +138,8 @@ export function buildTaskFilterConditions(filters: TaskFilters): SQL[] {
 /** Merge builder conditions with base conditions into a single `and(...)`. */
 export function withTaskFilters(
   base: SQL[],
-  filters: TaskFilters
+  filters: TaskFilters,
+  today: CalendarDay
 ): SQL | undefined {
-  return and(...base, ...buildTaskFilterConditions(filters));
+  return and(...base, ...buildTaskFilterConditions(filters, today));
 }

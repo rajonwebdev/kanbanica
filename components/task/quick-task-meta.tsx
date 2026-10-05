@@ -22,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { PRIORITY_CONFIG, type Priority } from "@/lib/priority-config";
+import { calendarDayFromLocalDate } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 // Optional metadata collected during inline task creation. All fields optional —
@@ -60,7 +61,8 @@ export function hasQuickMeta(m: QuickTaskMetaValue): boolean {
 export function quickMetaCreateFields(m: QuickTaskMetaValue) {
   return {
     ...(m.priority !== "NONE" && { priority: m.priority }),
-    ...(m.dueDate && { dueDateEnd: m.dueDate }),
+    // Picker value is local midnight of the clicked day → that calendar day.
+    ...(m.dueDate && { dueDateEnd: calendarDayFromLocalDate(m.dueDate) }),
     ...(m.assigneeIds.length > 0 && { assigneeIds: m.assigneeIds }),
     ...(m.tagIds.length > 0 && { tagIds: m.tagIds }),
     ...(m.statusId && { statusId: m.statusId }),

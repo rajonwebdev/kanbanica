@@ -1,4 +1,4 @@
-import { format, isPast, isToday } from "date-fns";
+import { type CalendarDay, formatCalendarDay } from "@/lib/timezone";
 
 export const PRIORITY_CONFIG = {
   NONE: { label: "No Priority", color: "text-gray-400", icon: "😴" },
@@ -30,13 +30,22 @@ export function avatarSrc(key: string | null | undefined): string | undefined {
   return key ? `/api/files/${key}` : undefined;
 }
 
+/**
+ * Label for a due date (a calendar day). `today` is today in the WORKSPACE
+ * timezone (`useWorkspaceToday()`), so every viewer sees the same label.
+ */
 export function formatDueDate(
-  date: Date | null
+  dueDate: CalendarDay | null,
+  today: CalendarDay
 ): { label: string; overdue: boolean } | null {
-  if (!date) {
+  if (!dueDate) {
     return null;
   }
-  const d = new Date(date);
-  const overdue = isPast(d) && !isToday(d);
-  return { label: isToday(d) ? "Today" : format(d, "MMM d"), overdue };
+  if (dueDate === today) {
+    return { label: "Today", overdue: false };
+  }
+  return {
+    label: formatCalendarDay(dueDate, "MMM d"),
+    overdue: dueDate < today,
+  };
 }

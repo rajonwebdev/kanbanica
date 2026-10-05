@@ -11,7 +11,6 @@ import {
   TargetIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { format } from "date-fns";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +38,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
+import {
+  type CalendarDay,
+  diffCalendarDays,
+  formatCalendarDay,
+} from "@/lib/timezone";
 import { AddTasksToSprintModal } from "./add-tasks-to-sprint-modal";
 import { CloseSprintModal } from "./close-sprint-modal";
 import { CreateSprintModal } from "./create-sprint-modal";
@@ -47,11 +52,11 @@ import { CreateSprintModal } from "./create-sprint-modal";
 
 interface SprintRow {
   createdAt: Date;
-  endDate: Date | null;
+  endDate: string | null;
   goal: string | null;
   id: string;
   name: string;
-  startDate: Date | null;
+  startDate: string | null;
   status: "PLANNED" | "ACTIVE" | "CLOSED";
 }
 
@@ -69,25 +74,23 @@ interface SprintPanelProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(date: Date | null): string {
-  if (!date) {
+function formatDate(day: string | null): string {
+  if (!day) {
     return "—";
   }
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  return formatCalendarDay(day, "MMM d");
 }
 
-function getDaysRemaining(endDate: Date | null): number | null {
+// Whole days until the sprint's (inclusive) last day, from today in the
+// workspace timezone: 0 = ends today, negative = overdue.
+function getDaysRemaining(
+  endDate: string | null,
+  today: CalendarDay
+): number | null {
   if (!endDate) {
     return null;
   }
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
-  return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return diffCalendarDays(endDate, today);
 }
 
 // ─── Inline create task input ─────────────────────────────────────────────────
@@ -237,7 +240,7 @@ function ActiveSprintCard({
   onAddTasks: () => void;
   onRefresh: () => void;
 }) {
-  const daysRemaining = getDaysRemaining(sprint.endDate);
+  const daysRemaining = getDaysRemaining(sprint.endDate, useWorkspaceToday());
   const isOverdue = daysRemaining !== null && daysRemaining < 0;
   const percent =
     progress && progress.total > 0
@@ -814,11 +817,11 @@ export function SprintPanel({
                               {(s.startDate || s.endDate) && (
                                 <p className="text-[11px] text-base-content/70 truncate">
                                   {s.startDate
-                                    ? format(new Date(s.startDate), "MMM d")
+                                    ? formatCalendarDay(s.startDate, "MMM d")
                                     : "—"}
                                   {" → "}
                                   {s.endDate
-                                    ? format(new Date(s.endDate), "MMM d")
+                                    ? formatCalendarDay(s.endDate, "MMM d")
                                     : "—"}
                                 </p>
                               )}

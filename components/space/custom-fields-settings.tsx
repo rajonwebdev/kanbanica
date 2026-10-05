@@ -35,7 +35,6 @@ import {
   TrashIcon,
   UserIcon,
 } from "@phosphor-icons/react";
-import { format } from "date-fns";
 import * as React from "react";
 import { toast } from "sonner";
 import {
@@ -84,6 +83,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  calendarDayFromLocalDate,
+  coerceCalendarDay,
+  formatCalendarDay,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 const FIELD_TYPE_META: Record<
@@ -851,8 +856,11 @@ function FieldFormDialog({
                     disabled={busy}
                     type="button"
                   >
-                    {typeof defaultValue === "string" && defaultValue ? (
-                      format(new Date(defaultValue), "MMM d, yyyy")
+                    {coerceCalendarDay(defaultValue) ? (
+                      formatCalendarDay(
+                        coerceCalendarDay(defaultValue) as string,
+                        "MMM d, yyyy"
+                      )
                     ) : (
                       <span className="text-base-content/60">No default</span>
                     )}
@@ -863,14 +871,14 @@ function FieldFormDialog({
                   <Calendar
                     mode="single"
                     onSelect={(d) => {
-                      setDefaultValue(d ? d.toISOString() : null);
+                      // Calendar day of the clicked (local-midnight) date.
+                      setDefaultValue(d ? calendarDayFromLocalDate(d) : null);
                       setDateOpen(false);
                     }}
-                    selected={
-                      typeof defaultValue === "string" && defaultValue
-                        ? new Date(defaultValue)
-                        : undefined
-                    }
+                    selected={(() => {
+                      const day = coerceCalendarDay(defaultValue);
+                      return day ? localDateFromCalendarDay(day) : undefined;
+                    })()}
                   />
                 </PopoverContent>
               </Popover>

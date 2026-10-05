@@ -2,6 +2,7 @@ import type {
   CustomFieldRow,
   CustomFieldType,
 } from "@/app/actions/custom-field";
+import { coerceCalendarDay, localDateFromCalendarDay } from "@/lib/timezone";
 
 // Shared between the List View header (list-view.tsx) and row cells
 // (task-list-row.tsx) so a column's header and its cells always agree on
@@ -60,8 +61,9 @@ export function describeCustomFieldValue(
       return member?.name ?? member?.email ?? "";
     }
     case "DATE": {
-      const date = new Date(value as string);
-      return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
+      // Calendar day → shown as that day everywhere (legacy ISO read leniently).
+      const day = coerceCalendarDay(value);
+      return day ? localDateFromCalendarDay(day).toLocaleDateString() : "";
     }
     case "CHECKBOX":
       return value ? "Yes" : "No";

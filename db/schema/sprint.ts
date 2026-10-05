@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, text, timestamp, integer, boolean, index, unique } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, timestamp, integer, boolean, index, unique, date } from "drizzle-orm/pg-core";
 import { space } from "./space";
 import { task } from "./task";
 
@@ -15,8 +15,11 @@ export const sprint = pgTable(
     name: text("name").notNull(),
     goal: text("goal"),
     status: sprintStatusEnum("status").notNull().default("PLANNED"),
-    startDate: timestamp("start_date", { withTimezone: true }),
-    endDate: timestamp("end_date", { withTimezone: true }),
+    // Calendar days ("YYYY-MM-DD"), both inclusive: a 1-week sprint starting
+    // Mon Oct 5 ends Sun Oct 11. Boundaries are decided in the workspace
+    // timezone. The exact moment it was started lives in `startedAt`.
+    startDate: date("start_date", { mode: "string" }),
+    endDate: date("end_date", { mode: "string" }),
     durationWeeks: integer("duration_weeks").notNull().default(2),
     autoCreateNext: boolean("auto_create_next").notNull().default(false),
     autoCloseOnNext: boolean("auto_close_on_next").notNull().default(false),

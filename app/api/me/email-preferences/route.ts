@@ -5,6 +5,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { userEmailPreference } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canonicalTimeZone, isValidTimeZone } from "@/lib/timezone";
+
+const DIGEST_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export async function GET(_req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -19,6 +22,9 @@ export async function GET(_req: NextRequest) {
     .limit(1);
 
   return NextResponse.json({
+    // `saved: false` lets the settings page pre-fill the browser timezone for a
+    // user who has never saved email preferences (emails can't read it).
+    saved: Boolean(pref),
     preference: pref ?? {
       deliveryMode: "instant",
       digestTime: "08:00",
@@ -46,6 +52,23 @@ export async function PATCH(req: NextRequest) {
     soundType,
   } = body;
 
+  if (
+    digestTimezone !== undefined &&
+    (typeof digestTimezone !== "string" || !isValidTimeZone(digestTimezone))
+  ) {
+    return NextResponse.json({ error: "Invalid timezone" }, { status: 400 });
+  }
+  if (
+    digestTime !== undefined &&
+    (typeof digestTime !== "string" || !DIGEST_TIME_RE.test(digestTime))
+  ) {
+    return NextResponse.json({ error: "Invalid digest time" }, { status: 400 });
+  }
+  const timeZone =
+    digestTimezone === undefined
+      ? undefined
+      : canonicalTimeZone(digestTimezone);
+
   const [existing] = await db
     .select({ id: userEmailPreference.id })
     .from(userEmailPreference)
@@ -60,7 +83,7 @@ export async function PATCH(req: NextRequest) {
       .set({
         ...(deliveryMode !== undefined && { deliveryMode }),
         ...(digestTime !== undefined && { digestTime }),
-        ...(digestTimezone !== undefined && { digestTimezone }),
+        ...(timeZone !== undefined && { digestTimezone: timeZone }),
         ...(soundEnabled !== undefined && { soundEnabled }),
         ...(soundVolume !== undefined && { soundVolume }),
         ...(soundType !== undefined && { soundType }),
@@ -73,7 +96,7 @@ export async function PATCH(req: NextRequest) {
       userId: session.user.id,
       deliveryMode: deliveryMode ?? "instant",
       digestTime: digestTime ?? "08:00",
-      digestTimezone: digestTimezone ?? "UTC",
+      digestTimezone: timeZone ?? "UTC",
       soundEnabled: soundEnabled ?? true,
       soundVolume: soundVolume ?? 70,
       soundType: soundType ?? "default",

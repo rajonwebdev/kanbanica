@@ -23,18 +23,13 @@ import {
   PlusIcon,
 } from "@phosphor-icons/react";
 import {
-  addDays,
   addMonths,
-  differenceInCalendarDays,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
-  isSameDay,
   isSameMonth,
-  isToday,
   isWeekend,
-  startOfDay,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -80,11 +75,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useWorkspaceToday } from "@/components/workspace/workspace-timezone-provider";
 import { useCreateTaskShortcut } from "@/hooks/use-create-task-shortcut";
 import { PRIORITY_OPTIONS } from "@/lib/filters/options";
 import { filterTasks } from "@/lib/filters/task-filter";
 import { PRIORITY_CONFIG, type Priority } from "@/lib/priority-config";
 import { setTaskNavContext } from "@/lib/task-nav-context";
+import {
+  addCalendarDays,
+  diffCalendarDays,
+  localDateFromCalendarDay,
+  WEEK_STARTS_ON,
+} from "@/lib/timezone";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 import { MobileCalendar } from "./calendar-view-mobile";
@@ -110,8 +112,8 @@ export type CalendarTask = {
   priority: Priority;
   statusId: string | null;
   seqNumber: number;
-  dueDateStart: Date | null;
-  dueDateEnd: Date | null;
+  dueDateStart: string | null;
+  dueDateEnd: string | null;
   assignees: { userId: string; name: string; image: string | null }[];
 };
 
@@ -121,29 +123,24 @@ export type Member = {
   email: string | null;
 };
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Monday-first, matching the "This week" filters (WEEK_STARTS_ON).
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEK_OPTIONS = { weekStartsOn: WEEK_STARTS_ON } as const;
 const MAX_CHIPS_PER_DAY = 4;
 
 export function dayKey(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
-function parseDayKey(key: string): Date {
-  return new Date(`${key}T00:00:00`);
-}
 
-// The task's anchor day on the grid: its deadline (dueDateEnd) or, failing that,
-// its start date. Tasks with neither are unscheduled and not shown.
-export function primaryDay(t: CalendarTask): Date | null {
-  const d = t.dueDateEnd ?? t.dueDateStart;
-  return d ? startOfDay(new Date(d)) : null;
+// The task's anchor day on the grid (a calendar day, "YYYY-MM-DD" — the same
+// format as dayKey): its deadline (dueDateEnd) or, failing that, its start
+// date. Tasks with neither are unscheduled and not shown.
+export function primaryDay(t: CalendarTask): string | null {
+  return t.dueDateEnd ?? t.dueDateStart;
 }
 
 function isRange(t: CalendarTask): boolean {
-  return (
-    !!t.dueDateStart &&
-    !!t.dueDateEnd &&
-    !isSameDay(new Date(t.dueDateStart), new Date(t.dueDateEnd))
-  );
+  return !!t.dueDateStart && !!t.dueDateEnd && t.dueDateStart !== t.dueDateEnd;
 }
 
 export function CalendarView({
@@ -202,6 +199,13 @@ export function CalendarView({
   // eagerly renders a different date server- vs client-side and trips a
   // hydration mismatch. Both sides start at `new Date()`; the effect restores
   // the saved value right after mount.
+  // The workspace's today as a picker-local Date, for "Today" navigation.
+  const workspaceTodayDay = useWorkspaceToday();
+  const todayDate = React.useMemo(
+    () => localDateFromCalendarDay(workspaceTodayDay),
+    [workspaceTodayDay]
+  );
+
   const storageKey = `kanbanica:calendar-month:${listId}`;
   const [viewDate, setViewDate] = React.useState<Date>(() => new Date());
   React.useEffect(() => {
@@ -245,11 +249,11 @@ export function CalendarView({
   const [createDay, setCreateDay] = React.useState<Date | null>(null);
   // "C" opens the Create Task popup (defaults the due date to today, matching
   // how creation works in the calendar — clicking a day).
-  useCreateTaskShortcut(() => setCreateDay(new Date()), canEdit);
+  useCreateTaskShortcut(() => setCreateDay(todayDate), canEdit);
   const [pendingReschedule, setPendingReschedule] = React.useState<{
     taskId: string;
-    newStart: Date | null;
-    newEnd: Date | null;
+    newStart: string | null;
+    newEnd: string | null;
   } | null>(null);
 
   const statusById = React.useMemo(
@@ -263,15 +267,15 @@ export function CalendarView({
 
   // The visible 6-week grid.
   const gridDays = React.useMemo(() => {
-    const start = startOfWeek(startOfMonth(viewDate));
-    const end = endOfWeek(endOfMonth(viewDate));
+    const start = startOfWeek(startOfMonth(viewDate), WEEK_OPTIONS);
+    const end = endOfWeek(endOfMonth(viewDate), WEEK_OPTIONS);
     return eachDayOfInterval({ start, end });
   }, [viewDate]);
 
   // Mobile-only: the single visible week (Week View default).
   const weekDays = React.useMemo(() => {
-    const start = startOfWeek(viewDate);
-    const end = endOfWeek(viewDate);
+    const start = startOfWeek(viewDate, WEEK_OPTIONS);
+    const end = endOfWeek(viewDate, WEEK_OPTIONS);
     return eachDayOfInterval({ start, end });
   }, [viewDate]);
 
@@ -312,11 +316,10 @@ export function CalendarView({
 
     const map = new Map<string, CalendarTask[]>();
     for (const t of filtered) {
-      const anchor = primaryDay(t);
-      if (!anchor) {
+      const key = primaryDay(t);
+      if (!key) {
         continue; // unscheduled — not shown
       }
-      const key = dayKey(anchor);
       const arr = map.get(key);
       if (arr) {
         arr.push(t);
@@ -369,25 +372,22 @@ export function CalendarView({
   }
 
   // Compute new dates for a drop, preserving span for real ranges.
+  // Day keys are calendar days, so this is plain calendar-day arithmetic.
   function computeDrop(t: CalendarTask, fromKey: string, toKey: string) {
-    const delta = differenceInCalendarDays(
-      parseDayKey(toKey),
-      parseDayKey(fromKey)
-    );
+    const delta = diffCalendarDays(toKey, fromKey);
     if (isRange(t)) {
       return {
-        newStart: addDays(new Date(t.dueDateStart as Date), delta),
-        newEnd: addDays(new Date(t.dueDateEnd as Date), delta),
+        newStart: addCalendarDays(t.dueDateStart as string, delta),
+        newEnd: addCalendarDays(t.dueDateEnd as string, delta),
       };
     }
-    const target = parseDayKey(toKey);
-    return { newStart: target, newEnd: target };
+    return { newStart: toKey, newEnd: toKey };
   }
 
   async function applyReschedule(
     taskId: string,
-    newStart: Date | null,
-    newEnd: Date | null
+    newStart: string | null,
+    newEnd: string | null
   ) {
     setLocalTasks((prev) =>
       prev.map((t) =>
@@ -633,8 +633,8 @@ export function CalendarView({
               </button>
               <Button
                 className="ml-1 h-8 text-xs"
-                disabled={isSameMonth(viewDate, new Date())}
-                onClick={() => goToMonth(new Date())}
+                disabled={isSameMonth(viewDate, todayDate)}
+                onClick={() => goToMonth(todayDate)}
                 size="sm"
                 variant="outline"
               >
@@ -649,7 +649,7 @@ export function CalendarView({
               <div
                 className={cn(
                   "px-2 py-1.5",
-                  (i === 0 || i === 6) && "bg-base-200/30 dark:bg-base-200/10"
+                  i >= 5 && "bg-base-200/30 dark:bg-base-200/10"
                 )}
                 key={d}
               >
@@ -878,7 +878,8 @@ function DayCell({
 }) {
   const key = dayKey(day);
   const { setNodeRef, isOver } = useDroppable({ id: key });
-  const today = isToday(day);
+  // "Today" is the workspace's today, so it lines up with due-today chips.
+  const today = key === useWorkspaceToday();
   const weekend = isWeekend(day);
   const visible = tasks.slice(0, MAX_CHIPS_PER_DAY);
   const overflow = tasks.length - visible.length;
@@ -1007,7 +1008,8 @@ function ChipVisual({
   const status = statusById.get(task.statusId ?? "");
   const done = status?.type === "CLOSED";
   const anchor = primaryDay(task);
-  const overdue = !done && anchor !== null && anchor < startOfDay(new Date());
+  const workspaceToday = useWorkspaceToday();
+  const overdue = !done && anchor !== null && anchor < workspaceToday;
   const priorityCfg = PRIORITY_CONFIG[task.priority];
   const assignee = task.assignees[0];
 

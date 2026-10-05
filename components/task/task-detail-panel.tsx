@@ -108,6 +108,10 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { InviteMemberModal } from "@/components/workspace/invite-member-modal";
 import { flashDuplicatedTask } from "@/lib/duplicate-highlight";
+import {
+  calendarDayFromLocalDate,
+  localDateFromCalendarDay,
+} from "@/lib/timezone";
 import { toastWithUndo } from "@/lib/undo-toast";
 import { cn } from "@/lib/utils";
 
@@ -419,16 +423,18 @@ export function TaskDetailPanel({
     field: "start" | "end",
     date: Date | null
   ) {
+    // Pickers hand back local midnight of the clicked day → that calendar day.
+    const day = date ? calendarDayFromLocalDate(date) : null;
     if (field === "start") {
       // Keep end >= start: if the new start is after the current end, move end too.
       const patch =
         date && dueDateEnd && date > dueDateEnd
-          ? { dueDateStart: date, dueDateEnd: date }
-          : { dueDateStart: date };
+          ? { dueDateStart: day, dueDateEnd: day }
+          : { dueDateStart: day };
       await updateTask(workspaceId, spaceId, listId, taskId, patch);
     } else {
       await updateTask(workspaceId, spaceId, listId, taskId, {
-        dueDateEnd: date,
+        dueDateEnd: day,
       });
     }
     load();
@@ -597,8 +603,13 @@ export function TaskDetailPanel({
     }
   }
 
-  const dueDateStart = t.dueDateStart ? new Date(t.dueDateStart) : null;
-  const dueDateEnd = t.dueDateEnd ? new Date(t.dueDateEnd) : null;
+  // Local-midnight Dates of the calendar days — for the pickers and format().
+  const dueDateStart = t.dueDateStart
+    ? localDateFromCalendarDay(t.dueDateStart)
+    : null;
+  const dueDateEnd = t.dueDateEnd
+    ? localDateFromCalendarDay(t.dueDateEnd)
+    : null;
 
   const panelContent = (
     <>
