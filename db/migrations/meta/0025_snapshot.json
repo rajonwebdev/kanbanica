@@ -1,5 +1,5 @@
 {
-  "id": "2e357a4d-613a-4dc4-9774-0941f7e1bbc8",
+  "id": "055f24e8-eb97-421a-8314-1667ead5fd81",
   "prevId": "01f318aa-4b76-42fc-905a-4931f2eb1a03",
   "version": "7",
   "dialect": "postgresql",
@@ -944,6 +944,12 @@
           "notNull": true,
           "default": 0
         },
+        "max_tasks": {
+          "name": "max_tasks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "workspace_status",
@@ -958,13 +964,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'forest'"
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'UTC'"
         },
         "created_by": {
           "name": "created_by",

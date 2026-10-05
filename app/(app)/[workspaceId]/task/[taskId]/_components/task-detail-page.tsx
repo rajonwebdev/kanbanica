@@ -1239,9 +1239,12 @@ export function TaskDetailPage({
     setSaving(true);
     const res = await duplicateTask(workspaceId, spaceId, listId, taskId);
     setSaving(false);
-    if ("taskId" in res) {
-      flashDuplicatedTask(res.taskId);
+    if ("error" in res) {
+      // Stay on the task so the error (e.g. workspace task limit) is seen.
+      toast.error(res.error);
+      return;
     }
+    flashDuplicatedTask(res.taskId);
     router.push(backUrl);
   }
 
@@ -2523,13 +2526,17 @@ export function TaskDetailPage({
                             onKeyDown={async (e) => {
                               if (e.key === "Enter" && subtaskInput.trim()) {
                                 setCreatingSubtask(true);
-                                await createSubtask(
+                                const subRes = await createSubtask(
                                   workspaceId,
                                   spaceId,
                                   taskId,
                                   subtaskInput.trim()
                                 );
-                                setSubtaskInput("");
+                                if ("error" in subRes) {
+                                  toast.error(subRes.error);
+                                } else {
+                                  setSubtaskInput("");
+                                }
                                 setCreatingSubtask(false);
                                 load();
                                 subtaskInputRef.current?.focus();
@@ -2563,13 +2570,17 @@ export function TaskDetailPage({
                                 return;
                               }
                               setCreatingSubtask(true);
-                              await createSubtask(
+                              const subRes = await createSubtask(
                                 workspaceId,
                                 spaceId,
                                 taskId,
                                 subtaskInput.trim()
                               );
-                              setSubtaskInput("");
+                              if ("error" in subRes) {
+                                toast.error(subRes.error);
+                              } else {
+                                setSubtaskInput("");
+                              }
                               setCreatingSubtask(false);
                               load();
                               subtaskInputRef.current?.focus();

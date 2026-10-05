@@ -30,6 +30,123 @@ dated section, e.g.:
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-02
+
+### Added
+- First-time users with no display name are asked for one (`/complete-profile`)
+  before an invitation is auto-accepted or an invite link is joined.
+- Workspace owners and admins are notified when someone joins through the
+  shared invite link.
+- **One container is now a complete deployment.** Run the image with no command
+  and it applies pending migrations, then runs the web server *and* one
+  background worker together — the flow you get from a platform that deploys a
+  registry image once (Dokploy, Coolify, CapRover, a bare `docker run`). A new
+  entrypoint (`scripts/docker-entrypoint.sh`) picks the role; both processes are
+  supervised, so if either one exits the container exits and your restart policy
+  brings the pair back.
+- `KANBANICA_ROLE` selects the role by environment instead of by command:
+  `all` (the default — migrate + web + worker), or `app`, `worker`, `migrate`
+  individually. Useful where setting an env var is easier than overriding a
+  container's command.
+- `KANBANICA_RUN_MIGRATIONS=false` skips the migration step, for a managed
+  database whose application user may not run DDL. Defaults to `true` for
+  `all`/`migrate` and `false` for `app`/`worker`.
+- `.gitattributes` pinning `*.sh` to LF, so a Windows checkout can't bake a CRLF
+  entrypoint into an image built with `docker-compose.build.yml`.
+
+### Changed
+- The image's default `CMD` is a sentinel (`kanbanica`) read by the new
+  `ENTRYPOINT`, rather than `pnpm start`. **Any explicit command is still run
+  verbatim**, which is how all three compose services continue to select their
+  role — see the upgrade notes.
+- `HEALTHCHECK --start-period` raised from 40s to 90s: in the default `all` role
+  the web server starts only after migrations have been applied, and the
+  migration step itself waits for a cold database.
+
+### Fixed
+- **Invitation acceptance showed "Invitation invalid" / "Unauthorized"** even
+  though the invitation had been accepted. The invite page now checks the
+  invite's state first, treats an invite already accepted by the current user as
+  success, and shows a distinct message per error. A logged-out visitor's
+  `/invite/<token>` now survives login. Blank user names fall back to the email
+  in notification titles and the project Add Member dropdown. Documented in
+  `docs/bugs/2026-10-02-bug-invite-accept-shows-invalid-and-blank-names.md`.
+- **Background worker never started on a single-container deploy.** Pointing
+  Dokploy (or any platform that runs the image once) at the registry image gave
+  the web server alone: no worker, and no migrations. Because email is enqueued
+  by the app and sent by the worker, magic-link sign-in silently never arrived —
+  and `/api/health` passed throughout, so nothing looked wrong. Documented in
+  `docs/bugs/2026-10-02-bug-worker-not-started-on-single-container-deploy.md`.
+
+### Upgrade notes
+- **Nothing to do for a `docker-compose.yml` deployment.** `docker compose pull
+  && docker compose up -d` is the whole upgrade. All three services set
+  `command:` explicitly, and the entrypoint runs an explicit command verbatim —
+  behavior is unchanged. No migration needs manual steps, no environment
+  variable changed, and both volume names and the runtime uid/gid (1001) are
+  untouched.
+- **Deploying a single container? Clear the command field.** If your platform's
+  app has a command override set (e.g. `pnpm start` carried over from an earlier
+  release), that still wins and you will still get the web server alone. Leave it
+  empty to get migrate + web + worker.
+- **Keep a single-container deployment at one replica.** Each replica would run
+  its own worker, and two workers can double-process jobs. To scale the web tier,
+  split the roles instead (`KANBANICA_ROLE=app` plus one `KANBANICA_ROLE=worker`)
+  — and see the single-app-instance limit in `DEPLOYMENT.md` § 9.
+- **Don't set `PORT`.** The image's `HEALTHCHECK` probes `:3000` inside the
+  container; map the port externally instead.
+
+## [0.2.0] - 2026-10-01
+
+### Added
+- Published-image install path: `docker compose up -d` now pulls
+  `ghcr.io/stack256org/kanbanica` instead of building on your server. New
+  `docker-compose.build.yml` covers build-from-source.
+- `docs/releasing.md` documenting the release pipeline, and product screenshots
+  in `docs/screenshots/`.
+- `pnpm docs:sync` / `pnpm docs:check` (`scripts/sync-readme.mjs`) keep the
+  README's `docker pull` block in step with `package.json`.
+
+### Changed
+- Docker: one image now serves all three roles (`app`, `worker`, `migrate`),
+  selected by `command:` — `Dockerfile.worker` is removed and
+  `next.config.mjs` no longer uses `output: "standalone"`. The image ships the
+  real source tree with a `--prod` `node_modules`, so `pnpm worker:start`,
+  `pnpm db:migrate:prod` and the admin-recovery scripts all run inside any
+  container. This also removes the hand-maintained copy of sharp's native
+  libvips that the standalone file-tracer needed.
+- `docker-compose.yml` now **pulls the published image** instead of building
+  locally (`docker compose up -d`, no `--build`), with `IMAGE_TAG` to pin a
+  version and `APP_PORT` to move the host port. Build-from-source moved to the
+  new `docker-compose.build.yml`; `docker-compose.external-db.yml` still
+  overlays either one. Volume names are unchanged, so existing deployments
+  reattach to their data.
+
+### Fixed
+- Documented commands that could not work: `pnpm worker:start` /
+  `pnpm db:migrate:prod` were listed for an image with no `pnpm` in it, and
+  `curl localhost:3000` was documented while the compose file bound no host
+  port.
+- README links, and the release workflow's handling of the commit CI actually
+  tested (`workflow_run.head_sha` rather than `github.sha`).
+
+### Upgrade notes
+- **Nothing to do for a `docker-compose.yml` deployment.** `docker compose pull
+  && docker compose up -d` is the whole upgrade. No migration needs manual
+  steps, no environment variable changed, and both volume names and the
+  runtime uid/gid (1001) are untouched.
+- **`Dockerfile.worker` no longer exists.** If your platform (Dokploy, Coolify,
+  Kubernetes, …) has a service configured to build from that path, point it at
+  the single published image with `command: pnpm worker:start` instead. Same for
+  a migration service: `command: pnpm db:migrate:prod`.
+- **`docker compose up -d --build` no longer builds anything** — the default
+  compose file has no `build:` section. Use
+  `docker compose -f docker-compose.build.yml up -d --build`.
+- **The app now binds a host port** (`${APP_PORT:-3000}:3000`), where before it
+  only used `expose:`. Behind a reverse proxy on the same Docker network,
+  replace that block with `expose: ["3000"]`, or set `APP_PORT` to something
+  free.
+
 ## [0.1.0] - 2026-08-17
 
 ### Added

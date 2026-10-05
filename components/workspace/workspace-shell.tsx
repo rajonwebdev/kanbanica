@@ -60,6 +60,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { CreateSpaceModal } from "@/components/workspace/create-space-modal";
 import { SpaceActionDialog } from "@/components/workspace/space-action-dialog";
+import { TaskLimitBanner } from "@/components/workspace/task-limit-banner";
 import { usePushSubscription } from "@/hooks/use-push-subscription";
 import { authClient } from "@/lib/auth-client";
 import { rememberWorkspace } from "@/lib/last-workspace";
@@ -138,6 +139,8 @@ interface WorkspaceShellProps {
   isPlatformAdmin?: boolean;
   role: string;
   spaces: SpaceSummary[];
+  /** Workspace task limit + usage (limit null = unlimited). Drives the banner. */
+  taskCapacity?: { limit: number | null; used: number };
   user: { name: string | null; email: string; image: string | null };
   workspace: WorkspaceSummary;
   workspaces: WorkspaceSummary[];
@@ -156,6 +159,7 @@ export function WorkspaceShell({
   channels: _channels,
   role,
   isPlatformAdmin = false,
+  taskCapacity,
   user,
 }: WorkspaceShellProps) {
   const pathname = usePathname();
@@ -1461,8 +1465,10 @@ export function WorkspaceShell({
       {/* Right column: topbar + main content */}
       <TopbarProvider>
         <TopbarRightColumn
+          isAdmin={isAdmin}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenSidebar={() => setSidebarOpen((open) => !open)}
+          taskCapacity={taskCapacity}
           workspaceId={workspace.id}
         >
           {children}
@@ -1586,11 +1592,15 @@ function PinnedTasksBar({ workspaceId }: { workspaceId: string }) {
 
 function TopbarRightColumn({
   workspaceId,
+  isAdmin,
+  taskCapacity,
   onOpenSidebar,
   onOpenSearch,
   children,
 }: {
   workspaceId: string;
+  isAdmin: boolean;
+  taskCapacity?: { limit: number | null; used: number };
   onOpenSidebar: () => void;
   onOpenSearch: () => void;
   children: React.ReactNode;
@@ -1677,6 +1687,11 @@ function TopbarRightColumn({
         </button>
       </header>
 
+      <TaskLimitBanner
+        capacity={taskCapacity}
+        isAdmin={isAdmin}
+        workspaceId={workspaceId}
+      />
       <PushNotificationBanner workspaceId={workspaceId} />
       <PinnedTasksBar workspaceId={workspaceId} />
       <main className="flex-1 overflow-auto bg-app">{children}</main>

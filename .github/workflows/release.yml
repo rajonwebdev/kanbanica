@@ -34,7 +34,7 @@ name: Release
 # so a release always lands on the commit that passed.
 #
 # ONE-TIME STEP after the first successful run: a new GitHub Packages entry is
-# private, even in a public repository. Repository -> Packages -> kanbanika ->
+# private, even in a public repository. Repository -> Packages -> kanbanica ->
 # Package settings -> Change visibility -> Public. Until then `docker pull`
 # fails for anyone who is not signed in.
 #
@@ -330,5 +330,5 @@ jobs:
             echo
             echo "> [!NOTE]"
             echo "> If this is the first release, the package is still **private**."
-            echo "> Repository → Packages → kanbanika → Package settings → Change visibility."
+            echo "> Repository → Packages → kanbanica → Package settings → Change visibility."
           } >> "$GITHUB_STEP_SUMMARY"

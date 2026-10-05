@@ -180,15 +180,36 @@
     {
       "idx": 25,
       "version": "7",
-      "when": 1790931314617,
-      "tag": "0025_panoramic_rockslide",
+      "when": 1790914365786,
+      "tag": "0025_workspace_max_tasks",
       "breakpoints": true
     },
     {
       "idx": 26,
       "version": "7",
+      "when": 1790919483488,
+      "tag": "0026_workspace_member_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790920515421,
+      "tag": "0027_workspace_invite_link_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790931314617,
+      "tag": "0028_workspace_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
       "when": 1790932694293,
-      "tag": "0026_smiling_robbie_robertson",
+      "tag": "0029_calendar_day_dates",
       "breakpoints": true
     }
   ]

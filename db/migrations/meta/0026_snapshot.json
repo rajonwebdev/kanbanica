@@ -1,6 +1,6 @@
 {
-  "id": "bad8db94-8799-42f8-a404-5b0be844e644",
-  "prevId": "2e357a4d-613a-4dc4-9774-0941f7e1bbc8",
+  "id": "3d95b1fa-f99e-4cde-bbc1-d34b536d6e0d",
+  "prevId": "055f24e8-eb97-421a-8314-1667ead5fd81",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -944,6 +944,24 @@
           "notNull": true,
           "default": 0
         },
+        "max_tasks": {
+          "name": "max_tasks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_members": {
+          "name": "max_members",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_guests": {
+          "name": "max_guests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "workspace_status",
@@ -958,13 +976,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'forest'"
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'UTC'"
         },
         "created_by": {
           "name": "created_by",
@@ -1780,13 +1791,13 @@
         },
         "due_date_start": {
           "name": "due_date_start",
-          "type": "date",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "due_date_end": {
           "name": "due_date_end",
-          "type": "date",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -2945,13 +2956,13 @@
         },
         "start_date": {
           "name": "start_date",
-          "type": "date",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
         "end_date": {
           "name": "end_date",
-          "type": "date",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

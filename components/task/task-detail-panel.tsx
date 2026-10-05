@@ -566,6 +566,8 @@ export function TaskDetailPanel({
       flashDuplicatedTask(res.taskId);
       onOpenChange(false);
       router.refresh();
+    } else {
+      toast.error(res.error);
     }
   }
 

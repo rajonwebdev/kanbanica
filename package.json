@@ -1,17 +1,17 @@
 {
   "name": "kanbanica",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "A modern, open-source project management tool for teams — workspaces, projects, boards, sprints, and tasks with real-time collaboration.",
   "type": "module",
   "private": true,
   "license": "MIT",
-  "homepage": "https://github.com/sahaj-snapdevio/Kanbanica#readme",
+  "homepage": "https://github.com/stack256org/kanbanica#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sahaj-snapdevio/Kanbanica.git"
+    "url": "git+https://github.com/stack256org/kanbanica.git"
   },
   "bugs": {
-    "url": "https://github.com/sahaj-snapdevio/Kanbanica/issues"
+    "url": "https://github.com/stack256org/kanbanica/issues"
   },
   "keywords": [
     "project-management",
@@ -37,6 +37,8 @@
     "lint:fix": "biome check --write",
     "lint:tokens": "./scripts/lint-tokens.sh",
     "format": "biome format --write",
+    "docs:sync": "node scripts/sync-readme.mjs",
+    "docs:check": "node scripts/sync-readme.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -89,6 +91,7 @@
     "next": "^16.3.0",
     "next-themes": "^0.4.6",
     "nodemailer": "^9.0.5",
+    "papaparse": "^5.7.0",
     "pg-boss": "^12.27.0",
     "postgres": "^3.4.9",
     "react": "^19.2.8",
@@ -111,6 +114,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/web-push": "^3.6.4",
